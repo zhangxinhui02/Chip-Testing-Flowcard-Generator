@@ -1,0 +1,31 @@
+[common]
+listen_host = '0.0.0.0'
+listen_port = 9000
+log_dir = "./log/"
+log_level = "INFO"
+log_rotation_days = 30
+
+[model]
+[model.llm]
+base_url = 'http://ollama:11434/v1'
+api_key = ''
+model = 'qwen3.5:35b'
+
+[model.embedding]
+base_url = 'http://ollama:11434/v1'
+api_key = ''
+model = 'dengcao/Qwen3-Embedding-8B:Q5_K_M'
+dimension = 4096
+
+[model.reranking]
+base_url = 'http://ollama:11434/v1'
+api_key = ''
+model = 'dengcao/Qwen3-Reranker-8B:Q5_K_M'
+
+[milvus]
+url = 'http://milvus:19530'
+token = ''
+database = 'chip_testing_flowcard_generator'
+chunk_size = 1200
+chunk_overlap = 200
+top_k = 4
