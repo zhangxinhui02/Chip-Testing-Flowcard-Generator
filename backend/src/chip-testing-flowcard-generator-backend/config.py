@@ -4,6 +4,12 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+class ConstConfig(BaseModel):
+    """常量配置"""
+    storage_dir: str = 'storage'  # 文件存储目录
+    temp_dir: str = 'temp'  # 临时工作目录
+
+
 class CommonConfig(BaseModel):
     """主程序配置"""
     listen_host: str = '0.0.0.0'
@@ -36,6 +42,7 @@ class MilvusConfig(BaseModel):
 
 
 is_config_loaded = False
+const_config = ConstConfig()
 common_config: CommonConfig | None = None
 llm_model_config: ModelConfig | None = None
 embedding_model_config: EmbeddingModelConfig | None = None

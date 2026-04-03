@@ -6,11 +6,15 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.135.2",
+    "img2pdf>=0.6.3",
     "langchain>=1.2.13",
     "langchain-milvus>=0.3.3",
     "langchain-openai>=1.1.12",
+    "langchain-text-splitters>=1.1.1",
     "pdf-craft>=1.0.12",
     "pydantic>=2.12.5",
+    "pymilvus==2.6.8",
+    "split-markdown4gpt>=1.0.9",
     "torch>=2.5.1",
     "torchvision>=0.20.1",
     "uvicorn>=0.42.0",
