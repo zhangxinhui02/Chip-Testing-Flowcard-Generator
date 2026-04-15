@@ -9,6 +9,7 @@ dependencies = [
     "img2pdf>=0.6.3",
     "langchain>=1.2.13",
     "langchain-milvus>=0.3.3",
+    "langchain-ollama>=1.0.1",
     "langchain-openai>=1.1.12",
     "langchain-text-splitters>=1.1.1",
     "pdf-craft>=1.0.12",
