@@ -18,6 +18,8 @@ class CommonConfig(BaseModel):
     log_dir: str = './log/'
     log_level: Literal['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] = 'INFO'
     log_rotation_days: int = 30
+    common_task_parallel_processing_count: int = 4
+    gpu_task_parallel_processing_count: int = 1
 
 
 class ModelConfig(BaseModel):
