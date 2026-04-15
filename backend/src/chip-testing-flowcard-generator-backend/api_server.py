@@ -1,37 +1,29 @@
 import logging
 import uvicorn
-from typing import Literal
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, APIRouter
 from contextlib import asynccontextmanager
 
 from config import const_config, common_config
+import routes
 
 logger = logging.getLogger(__file__)
 prefix = const_config.api_prefix
 
+
 @asynccontextmanager
 async def lifespan(_):
+    """FastAPI生命周期管理器"""
     pass
     yield
     pass
 
+
 app = FastAPI(lifespan=lifespan)
-
-
-@app.get(f"{prefix}/")
-def root():
-    return {"message": "Hello World"}
-
-
-# 知识库
-@app.get(f'{prefix}/docs')
-def get_docs():
-    """获取所有的文档信息"""
-    pass
-
-@app.post(f'{prefix}/docs')
-def create_doc(title: str, file_type: Literal['image', 'pdf', 'markdown', 'txt'], file: UploadFile = File(...)):
-    """创建文档"""
+api_prefixed = APIRouter(prefix=prefix)
+api_prefixed.include_router(routes.docs_router)
+api_prefixed.include_router(routes.flowcard_router)
+api_prefixed.include_router(routes.qa_router)
+app.include_router(api_prefixed)
 
 
 def run():
