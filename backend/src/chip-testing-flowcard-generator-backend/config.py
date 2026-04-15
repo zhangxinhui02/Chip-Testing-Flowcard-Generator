@@ -8,6 +8,7 @@ class ConstConfig(BaseModel):
     """常量配置"""
     storage_dir: str = 'storage'  # 文件存储目录
     temp_dir: str = 'temp'  # 临时工作目录
+    api_prefix: str = '/api'
 
 
 class CommonConfig(BaseModel):

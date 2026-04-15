@@ -15,7 +15,7 @@ model = 'qwen3.5:35b'
 base_url = 'http://ollama:11434/v1'
 api_key = ''
 model = 'dengcao/Qwen3-Embedding-8B:Q5_K_M'
-dimension = 4096
+dimension = 4096  # 此参数与embedding模型相关联，qwen3-embedding:8b的输出维度为4096
 
 [model.reranking]
 base_url = 'http://ollama:11434/v1'
