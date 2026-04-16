@@ -32,11 +32,10 @@ dummy_vector = FieldSchema(
     name="dummy_vector",
     dtype=DataType.FLOAT_VECTOR,
     dim=2,
-    default_value=[.0, .0],
     description="Placeholder data used to adapt to Milvus's vectorization requirements"
 )
 
-docs_schema = CollectionSchema(
+docs_info_schema = CollectionSchema(
     fields=[primary_key, doc_title, doc_id, doc_status, dummy_vector],
     description="Documents info collection"
 )

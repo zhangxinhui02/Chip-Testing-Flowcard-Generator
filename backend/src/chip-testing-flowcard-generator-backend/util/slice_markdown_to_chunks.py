@@ -4,12 +4,14 @@ from typing import Literal
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 def slice_markdown_to_chunks(
+        title: str,
         input_markdown_path: str,
         output_chunks_dir: str,
         min_slice_markdown_level: Literal[1, 2, 3, 4, 5, 6] = 3
 ):
     """
     将markdown按照标题切分为更小的chunks
+    :param title: 文档标题
     :param input_markdown_path: 输入markdown路径
     :param output_chunks_dir: chunks要输出到的目录
     :param min_slice_markdown_level: 切分的最小markdown级别，默认为3（三级标题）
@@ -30,10 +32,11 @@ def slice_markdown_to_chunks(
     )
     chunks = splitter.split_text(content)
 
+    os.makedirs(output_chunks_dir, exist_ok=True)
     for i in range(len(chunks)):
         with open(os.path.join(output_chunks_dir, f'{i + 1}.md'), 'w', encoding='utf-8') as f:
             metadata = chunks[i].metadata
-            content = ''
+            content = f'文档标题：{title}\n\n---\n\n'
             for _level, _title in metadata.items():
                 content += f'{"#" * int(_level)} {_title}\n'
             content += f'\n---\n\n{chunks[i].page_content}'

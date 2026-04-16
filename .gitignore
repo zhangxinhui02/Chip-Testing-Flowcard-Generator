@@ -21,3 +21,5 @@ venv/
 config.toml
 *.log
 *.log.*
+storage/
+temp/

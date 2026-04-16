@@ -23,7 +23,7 @@ vector = FieldSchema(
     description='Chunk vector'
 )
 
-docs_schema = CollectionSchema(
+doc_schema = CollectionSchema(
     fields=[primary_key, content, vector],
     description="Document vector collection"
 )

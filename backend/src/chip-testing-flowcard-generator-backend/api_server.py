@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from config import const_config, common_config
 import routes
+import component.rag
 
 logger = logging.getLogger(__file__)
 prefix = const_config.api_prefix
@@ -13,7 +14,7 @@ prefix = const_config.api_prefix
 @asynccontextmanager
 async def lifespan(_):
     """FastAPI生命周期管理器"""
-    pass
+    await component.rag.init_milvus_database()
     yield
     pass
 

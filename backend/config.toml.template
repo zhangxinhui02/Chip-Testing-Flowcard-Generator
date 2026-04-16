@@ -31,3 +31,9 @@ database = 'chip_testing_flowcard_generator'
 chunk_size = 1200
 chunk_overlap = 200
 top_k = 4
+
+[pdf_craft]
+# pdf-craft需要连接huggingface.co以下载Deepseek OCR模型，部分网络环境可能需要代理
+proxy_enabled = false
+http_proxy = 'http://127.0.0.1:7890'
+https_proxy = 'http://127.0.0.1:7890'

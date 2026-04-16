@@ -5,8 +5,8 @@ from typing import Literal, List
 from pymilvus import AsyncMilvusClient
 from langchain_ollama import OllamaEmbeddings
 
-from config import const_config, embedding_model_config, reranking_model_config, milvus_config
-from schema.milvus_collection import docs_schema
+from config import const_config, embedding_model_config, reranking_model_config, milvus_config, pdf_craft_config
+from schema.milvus_collection import docs_info_schema, doc_schema
 import task_manager
 import util
 
@@ -22,8 +22,11 @@ embeddings_model = OllamaEmbeddings(
 )
 
 
-async def __init_milvus_database():
+async def init_milvus_database():
     """初始化Milvus数据库"""
+    logger.info('Initializing Milvus client...')
+    os.makedirs(os.path.join(const_config.storage_dir, 'rag'), exist_ok=True)
+    os.makedirs(os.path.join(const_config.temp_dir, 'rag'), exist_ok=True)
     # 连接Milvus
     global milvus_client
     logger.info('Connecting to Milvus server...')
@@ -48,7 +51,7 @@ async def __init_milvus_database():
 
     # 检查Collections
     collection_schemas = {
-        'docs_info': docs_schema,
+        'docs_info': docs_info_schema,
         # 'users': user_schema  # todo 多用户系统
     }
     collections = await milvus_client.list_collections()
@@ -59,7 +62,19 @@ async def __init_milvus_database():
                 collection_name=collection_name,
                 schema=collection_schemas[collection_name]
             )
+            # 创建索引
+            _index_params = milvus_client.prepare_index_params()
+            _index_params.add_index(
+                field_name="dummy_vector",
+                index_type="AUTOINDEX",
+                metric_type="COSINE",
+            )
+            await milvus_client.create_index(
+                collection_name=collection_name,
+                index_params=_index_params,
+            )
             logger.debug('\tCollection `%s` created.', collection_name)
+        await milvus_client.load_collection(collection_name)
 
     # 移除无效的docs
     _failed_docs = await milvus_client.query(
@@ -96,7 +111,8 @@ async def __vectorize_chunks(chunk: str) -> List[float]:
     :param chunk: chunk文本
     :return: 向量
     """
-    return await embeddings_model.aembed_query(chunk)
+    vector = await embeddings_model.aembed_query(chunk)
+    return vector
 
 
 async def __get_all_doc_ids() -> List[str]:
@@ -104,7 +120,8 @@ async def __get_all_doc_ids() -> List[str]:
     results = await milvus_client.query(
         collection_name="docs_info",
         filter="",
-        output_fields=["doc_title", "doc_id"]
+        output_fields=["doc_title", "doc_id"],
+        limit=10000
     )
     return [doc['doc_id'] for doc in results]
 
@@ -126,11 +143,12 @@ async def vectorize_doc_to_db(
 
     # 在docs Collection中新增记录并标记为创建中状态
     await milvus_client.insert(
-        f'doc_{doc_id}',
+        f'docs_info',
         {
             'doc_title': doc_title,
             'doc_id': doc_id,
-            'doc_status': 1  # CREATING
+            'doc_status': 1,  # CREATING
+            'dummy_vector': [.0, .0]
         }
     )
 
@@ -158,12 +176,20 @@ async def vectorize_doc_to_db(
         _task = await task_manager.run_task(
             'GPU',
             util.pdf_to_markdown,
-            (input_pdf_path, output_markdown_path, output_markdown_assets_dir),
+            (
+                input_pdf_path,
+                output_markdown_path,
+                output_markdown_assets_dir,
+                pdf_craft_config.proxy_enabled,
+                pdf_craft_config.http_proxy,
+                pdf_craft_config.https_proxy
+            ),
             doc_id
         )
         return _task.status == 'SUCCESS'
 
     async def _slice_markdown_to_chunks(
+            title: str,
             input_markdown_path: str,
             output_chunks_dir: str,
             min_slice_markdown_level: Literal[1, 2, 3, 4, 5, 6] = 3
@@ -172,6 +198,7 @@ async def vectorize_doc_to_db(
             'COMMON',
             util.slice_markdown_to_chunks,
             (
+                title,
                 input_markdown_path,
                 output_chunks_dir,
                 min_slice_markdown_level
@@ -187,7 +214,7 @@ async def vectorize_doc_to_db(
         # 创建文档的Milvus Collection
         await milvus_client.create_collection(
             f'doc_{doc_id}',
-            schema=docs_schema
+            schema=doc_schema
         )
         # 向量化所有chunks并入库
         for _id, chunk in enumerate(os.listdir(chunks_dir)):
@@ -217,14 +244,15 @@ async def vectorize_doc_to_db(
         # 修改docs记录中的状态为OK
         await milvus_client.delete(
             f'docs_info',
-            filter=f"doc_id == {doc_id}"
+            filter=f'doc_id == "{doc_id}"'
         )
         await milvus_client.insert(
             f'docs_info',
             {
                 'doc_title': doc_title,
                 'doc_id': doc_id,
-                'doc_status': 0  # OK
+                'doc_status': 0,  # OK
+                'dummy_vector': [.0, .0]
             }
         )
 
@@ -232,14 +260,15 @@ async def vectorize_doc_to_db(
         # 发生错误，修改docs记录中的状态为失败
         await milvus_client.delete(
             f'docs_info',
-            filter=f"doc_id == {doc_id}"
+            filter=f'doc_id == "{doc_id}"'
         )
         await milvus_client.insert(
             f'docs_info',
             {
                 'doc_title': doc_title,
                 'doc_id': doc_id,
-                'doc_status': 2  # FAILED
+                'doc_status': 2,  # FAILED
+                'dummy_vector': [.0, .0]
             }
         )
 
@@ -250,41 +279,41 @@ async def vectorize_doc_to_db(
     if doc_type == 'image':
         _input_image_path = storaged_file_path
         _tmp_pdf_path = os.path.join(temp_dir, f'{doc_id}.pdf')
-        _tmp_markdown_path = os.path.join(temp_dir, f'{doc_id}.md')
-        _tmp_markdown_assets_dir = os.path.join(temp_dir, f'{doc_id}-assets/')
-        _tmp_chunks_dir = os.path.join(temp_dir, f'{doc_id}-chunks/')
+        _tmp_markdown_path = os.path.abspath(os.path.join(temp_dir, f'{doc_id}.md'))
+        _tmp_markdown_assets_dir = f'{doc_id}-assets/'
+        _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
         tmp_path.extend([
-            _tmp_pdf_path, _tmp_markdown_path, _tmp_markdown_assets_dir, _tmp_chunks_dir
+            _tmp_pdf_path, _tmp_markdown_path, os.path.abspath(_tmp_markdown_assets_dir), _tmp_chunks_dir
         ])
 
         if await _image_to_pdf(_input_image_path, _tmp_pdf_path):
             if await _pdf_to_markdown(_tmp_pdf_path, _tmp_markdown_path, _tmp_markdown_assets_dir):
-                if await _slice_markdown_to_chunks(_tmp_markdown_path, _tmp_chunks_dir):
+                if await _slice_markdown_to_chunks(doc_title, _tmp_markdown_path, _tmp_chunks_dir):
                     is_preprocess_ok = True
 
     # PDF：先转markdown，再分片
     elif doc_type == 'pdf':
         _input_pdf_path = storaged_file_path
-        _tmp_markdown_path = os.path.join(temp_dir, f'{doc_id}.md')
-        _tmp_markdown_assets_dir = os.path.join(temp_dir, f'{doc_id}-assets/')
-        _tmp_chunks_dir = os.path.join(temp_dir, f'{doc_id}-chunks/')
+        _tmp_markdown_path = os.path.abspath(os.path.join(temp_dir, f'{doc_id}.md'))
+        _tmp_markdown_assets_dir = f'{doc_id}-assets/'
+        _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
         tmp_path.extend([
-            _tmp_markdown_path, _tmp_markdown_assets_dir, _tmp_chunks_dir
+            _tmp_markdown_path, os.path.abspath(_tmp_markdown_assets_dir), _tmp_chunks_dir
         ])
 
         if await _pdf_to_markdown(_input_pdf_path, _tmp_markdown_path, _tmp_markdown_assets_dir):
-            if await _slice_markdown_to_chunks(_tmp_markdown_path, _tmp_chunks_dir):
+            if await _slice_markdown_to_chunks(doc_title, _tmp_markdown_path, _tmp_chunks_dir):
                 is_preprocess_ok = True
 
     # markdown：直接分片
     elif doc_type == 'markdown':
-        _input_markdown_path = storaged_file_path
-        _tmp_chunks_dir = os.path.join(temp_dir, f'{doc_id}-chunks/')
+        _input_markdown_path = os.path.abspath(storaged_file_path)
+        _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
         tmp_path.extend([
             _tmp_chunks_dir
         ])
 
-        if await _slice_markdown_to_chunks(_input_markdown_path, _tmp_chunks_dir):
+        if await _slice_markdown_to_chunks(doc_title, _input_markdown_path, _tmp_chunks_dir):
             is_preprocess_ok = True
 
     # TXT：待补充
@@ -307,10 +336,3 @@ async def vectorize_doc_to_db(
             shutil.rmtree(_path)
         else:
             logger.error('Failed to delete unknown temporary path: %s', _path)
-
-
-if not is_initialized:
-    logger.info('Initializing Milvus client...')
-    os.makedirs(os.path.join(const_config.storage_dir, 'rag'), exist_ok=True)
-    os.makedirs(os.path.join(const_config.temp_dir, 'rag'), exist_ok=True)
-    __init_milvus_database()
