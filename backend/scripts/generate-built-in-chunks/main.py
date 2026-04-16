@@ -3,10 +3,11 @@ import os
 import pdf_craft
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
-INPUT_PDF_PATH = './target.pdf'
-OUTPUT_MARKDOWN_PATH = './target.md'
-OUTPUT_MARKDOWN_ASSETS_DIR = './assets/'
-OUTPUT_CHUNKS_DIR = './chunks/'
+DIR_NAME_FOR_DOC_TITLE = ''  # 工作目录路径，此目录的目录名会被读取为文档标题，并写入chunks
+INPUT_PDF_PATH = os.path.join(DIR_NAME_FOR_DOC_TITLE, 'target.pdf')
+OUTPUT_MARKDOWN_PATH = os.path.join(DIR_NAME_FOR_DOC_TITLE, 'target.md')
+OUTPUT_MARKDOWN_ASSETS_DIR = os.path.join(DIR_NAME_FOR_DOC_TITLE, 'assets/')
+OUTPUT_CHUNKS_DIR = os.path.join(DIR_NAME_FOR_DOC_TITLE, 'chunks/')
 
 os.makedirs(os.path.dirname(OUTPUT_MARKDOWN_PATH), exist_ok=True)
 os.makedirs(OUTPUT_MARKDOWN_ASSETS_DIR, exist_ok=True)
@@ -41,7 +42,8 @@ chunks = splitter.split_text(content)
 for i in range(len(chunks)):
     with open(os.path.join(OUTPUT_CHUNKS_DIR, f'{i + 1}.md'), 'w', encoding='utf-8') as f:
         metadata = chunks[i].metadata
-        content = ''
+        doc_title = os.path.basename(DIR_NAME_FOR_DOC_TITLE.rstrip("/").rstrip("\\"))
+        content = f'文档标题：{doc_title}\n\n---\n\n'
         for _level, _title in metadata.items():
             content += f'{"#" * int(_level)} {_title}\n'
         content += f'\n---\n\n{chunks[i].page_content}'
