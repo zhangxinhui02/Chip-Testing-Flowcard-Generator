@@ -15,6 +15,7 @@ dependencies = [
     "pdf-craft>=1.0.12",
     "pydantic>=2.12.5",
     "pymilvus==2.6.8",
+    "python-multipart>=0.0.26",
     "split-markdown4gpt>=1.0.9",
     "torch>=2.5.1",
     "torchvision>=0.20.1",
