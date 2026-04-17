@@ -5,6 +5,7 @@ description = "In chip testing, this project utilizes LLMs and RAG to generate t
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "aiohttp>=3.13.5",
     "fastapi>=0.135.2",
     "img2pdf>=0.6.3",
     "langchain>=1.2.13",

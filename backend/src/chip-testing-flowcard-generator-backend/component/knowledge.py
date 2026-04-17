@@ -1,5 +1,6 @@
 import os
 import shutil
+import aiohttp
 import logging
 from typing import Literal, List
 from pymilvus import AsyncMilvusClient
@@ -410,15 +411,57 @@ async def update_doc_info(doc_id: str, new_doc_title: str, new_doc_note: str) ->
     return True
 
 
-async def query_from_doc(content: str, doc_id: str, k: int = 10) -> List[str]:
-    """在指定文档中查找k条语义最相关的内容"""
-    vector = await embeddings_model.aembed_query(content)
+async def __rerank(query: str, docs: list[str], k: int = 10) -> list[str]:
+    """传入查询文本和文档列表，返回排序后的最相关的k条记录"""
+    assert k > 0, '`k` must be greater than 0'
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+                f"{reranking_model_config.base_url.rstrip('/')}/api/rerank",
+                json={
+                    "model": reranking_model_config.model,
+                    "query": query,
+                    "documents": docs
+                }
+        ) as resp:
+            result = await resp.json()
+
+            reranked_docs = []
+            for index, record in enumerate(result['results']):
+                if index >= k:
+                    break
+                reranked_docs.append(docs[record['index']])
+
+            return reranked_docs
+
+
+async def query_from_doc(query: str, doc_id: str, k: int = 10, reranking_k: int | None = None) -> List[str]:
+    """在指定文档中查找k条语义最相关的内容。如果指定了reranking_k参数，则按照此参数查找并返回重排序后的k条结果。"""
+    assert (bool(reranking_k) is False) or (reranking_k <= k), '`reranking_k` must be greater than `k`.'
+    vector = await embeddings_model.aembed_query(query)
     results = await milvus_client.search(
         collection_name=f"doc_{doc_id}",
         data=[vector],
         anns_field="vector",
         param={"metric_type": "COSINE"},
-        limit=k,
+        limit=reranking_k if reranking_k else k,
         output_fields=["content"]
     )
-    return [result['content'] for result in results[0]]
+    results = [result['content'] for result in results[0]]
+
+    if reranking_k:
+        results = await __rerank(query, results, k)
+
+    return results
+
+
+async def query_from_docs(query: str, doc_ids: List[str], k: int = 10, reranking_k: int | None = None) -> List[str]:
+    """
+    在指定的若干个文档中分别查找k条语义最相关的内容，最后返回所有结果中最相关的k条内容。
+    如果指定了reranking_k参数，则按照此参数查找并返回重排序后的k条结果。
+    """
+    assert (bool(reranking_k) is False) or (reranking_k <= k), '`reranking_k` must be greater than `k`.'
+    results = []
+    for doc_id in doc_ids:
+        results.extend(await query_from_doc(query, doc_id, k))
+    results = await __rerank(query, results, k)
+    return results
