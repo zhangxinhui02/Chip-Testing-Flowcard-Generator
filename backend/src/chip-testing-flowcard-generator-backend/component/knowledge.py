@@ -475,12 +475,13 @@ async def query_from_doc(query: str, doc_id: str, k: int = 10, reranking_k: int 
 
 async def query_from_docs(query: str, doc_ids: List[str], k: int = 10, reranking_k: int | None = None) -> List[str]:
     """
-    在指定的若干个文档中分别查找k条语义最相关的内容，最后返回所有结果中最相关的k条内容。
-    如果指定了reranking_k参数，则按照此参数查找并返回重排序后的k条结果。
+    在指定的若干个文档中分别查找k条语义最相关的内容，最后返回所有结果。
+    如果指定了reranking_k参数，则按照此参数查找所有结果并返回重排序后的k条结果。
     """
     assert (bool(reranking_k) is False) or (reranking_k <= k), '`reranking_k` must be greater than `k`.'
     results = []
     for doc_id in doc_ids:
-        results.extend(await query_from_doc(query, doc_id, k))
-    results = await __rerank(query, results, k)
+        results.extend(await query_from_doc(query, doc_id, reranking_k if reranking_k else k))
+    if reranking_k:
+        results = await __rerank(query, results, k)
     return results
