@@ -283,7 +283,7 @@ async def vectorize_doc_to_db(
         _tmp_markdown_assets_dir = f'{doc_id}-assets/'
         _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
         tmp_path.extend([
-            _tmp_pdf_path, _tmp_markdown_path, os.path.abspath(_tmp_markdown_assets_dir), _tmp_chunks_dir
+            _tmp_pdf_path, _tmp_markdown_path, os.path.join(temp_dir, _tmp_markdown_assets_dir), _tmp_chunks_dir
         ])
 
         if await _image_to_pdf(_input_image_path, _tmp_pdf_path):
@@ -298,7 +298,7 @@ async def vectorize_doc_to_db(
         _tmp_markdown_assets_dir = f'{doc_id}-assets/'
         _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
         tmp_path.extend([
-            _tmp_markdown_path, os.path.abspath(_tmp_markdown_assets_dir), _tmp_chunks_dir
+            _tmp_markdown_path, os.path.join(temp_dir, _tmp_markdown_assets_dir), _tmp_chunks_dir
         ])
 
         if await _pdf_to_markdown(_input_pdf_path, _tmp_markdown_path, _tmp_markdown_assets_dir):
