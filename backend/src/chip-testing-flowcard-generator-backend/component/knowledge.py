@@ -7,7 +7,7 @@ from langchain_ollama import OllamaEmbeddings
 
 from config import const_config, embedding_model_config, reranking_model_config, milvus_config, pdf_craft_config
 from schema.milvus_collection import docs_info_schema, doc_schema
-from schema.rag import Doc
+from schema.knowledge import Doc
 import task_manager
 import util
 

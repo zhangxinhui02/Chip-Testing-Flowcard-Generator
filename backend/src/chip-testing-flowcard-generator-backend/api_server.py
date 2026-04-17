@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from config import const_config, common_config
 import routes
-import component.rag
+import component.knowledge
 
 logger = logging.getLogger(__file__)
 prefix = const_config.api_prefix
