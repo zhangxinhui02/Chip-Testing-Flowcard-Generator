@@ -7,6 +7,7 @@ from langchain_ollama import OllamaEmbeddings
 
 from config import const_config, embedding_model_config, reranking_model_config, milvus_config, pdf_craft_config
 from schema.milvus_collection import docs_info_schema, doc_schema
+from schema.rag import Doc
 import task_manager
 import util
 
@@ -120,7 +121,7 @@ async def __get_all_doc_ids() -> List[str]:
     results = await milvus_client.query(
         collection_name="docs_info",
         filter="",
-        output_fields=["doc_title", "doc_id"],
+        output_fields=["doc_id"],
         limit=10000
     )
     return [doc['doc_id'] for doc in results]
@@ -129,13 +130,15 @@ async def __get_all_doc_ids() -> List[str]:
 async def vectorize_doc_to_db(
         doc_title: str,
         doc_path: str,
-        doc_type: Literal['image', 'pdf', 'markdown', 'txt']
+        doc_type: Literal['image', 'pdf', 'markdown', 'txt'],
+        doc_note: str | None = None
 ) -> str:
     """
     向量化文档内容并保存至向量数据库
     :param doc_title: 文档标题
     :param doc_path: 文档路径
     :param doc_type: 文档类型
+    :param doc_note: 文档备注
     :return: 文档ID
     """
     # 随机生成doc_id
@@ -147,6 +150,7 @@ async def vectorize_doc_to_db(
         {
             'doc_title': doc_title,
             'doc_id': doc_id,
+            'doc_note': doc_note,
             'doc_status': 1,  # CREATING
             'dummy_vector': [.0, .0]
         }
@@ -251,6 +255,7 @@ async def vectorize_doc_to_db(
             {
                 'doc_title': doc_title,
                 'doc_id': doc_id,
+                'doc_note': doc_note,
                 'doc_status': 0,  # OK
                 'dummy_vector': [.0, .0]
             }
@@ -267,6 +272,7 @@ async def vectorize_doc_to_db(
             {
                 'doc_title': doc_title,
                 'doc_id': doc_id,
+                'doc_note': doc_note,
                 'doc_status': 2,  # FAILED
                 'dummy_vector': [.0, .0]
             }
@@ -336,3 +342,31 @@ async def vectorize_doc_to_db(
             shutil.rmtree(_path)
         else:
             logger.error('Failed to delete unknown temporary path: %s', _path)
+
+
+async def get_all_docs() -> List[Doc]:
+    """获取所有文档描述对象"""
+    docs = []
+    records = await milvus_client.query(
+        collection_name="docs_info",
+        filter="",
+        limit=10000
+    )
+    for record in records:
+        _status: Literal['ok', 'creating', 'failed'] = 'ok'
+        if record["doc_status"] == 0:
+            _status = 'ok'
+        elif record["doc_status"] == 1:
+            _status = 'creating'
+        else:  # 3
+            _status = 'failed'
+
+        docs.append(
+            Doc(
+                title=record["doc_title"],
+                id=record["doc_id"],
+                status=_status,
+                note=record["doc_note"]
+            )
+        )
+    return docs
