@@ -438,6 +438,7 @@ async def query_from_doc(query: str, doc_id: str, k: int = 10, reranking_k: int 
     """在指定文档中查找k条语义最相关的内容。如果指定了reranking_k参数，则按照此参数查找并返回重排序后的k条结果。"""
     assert (bool(reranking_k) is False) or (reranking_k <= k), '`reranking_k` must be greater than `k`.'
     vector = await embeddings_model.aembed_query(query)
+    await milvus_client.load_collection(f'doc_{doc_id}')
     results = await milvus_client.search(
         collection_name=f"doc_{doc_id}",
         data=[vector],
@@ -446,6 +447,7 @@ async def query_from_doc(query: str, doc_id: str, k: int = 10, reranking_k: int 
         limit=reranking_k if reranking_k else k,
         output_fields=["content"]
     )
+    await milvus_client.release_collection(f'doc_{doc_id}')
     results = [result['content'] for result in results[0]]
 
     if reranking_k:
