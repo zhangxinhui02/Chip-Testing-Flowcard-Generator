@@ -104,6 +104,9 @@ async def init_milvus_database():
                     str(e)
                 )
 
+    # 加载内建文档
+
+
     logger.info('Database `%s` initialized.', milvus_config.database)
 
 
@@ -153,6 +156,7 @@ async def vectorize_doc_to_db(
             'doc_id': doc_id,
             'doc_note': doc_note,
             'doc_status': 1,  # CREATING
+            'doc_is_built_in': False,
             'dummy_vector': [.0, .0]
         }
     )
@@ -258,6 +262,7 @@ async def vectorize_doc_to_db(
                 'doc_id': doc_id,
                 'doc_note': doc_note,
                 'doc_status': 0,  # OK
+                'doc_is_built_in': False,
                 'dummy_vector': [.0, .0]
             }
         )
@@ -275,6 +280,7 @@ async def vectorize_doc_to_db(
                 'doc_id': doc_id,
                 'doc_note': doc_note,
                 'doc_status': 2,  # FAILED
+                'doc_is_built_in': False,
                 'dummy_vector': [.0, .0]
             }
         )
@@ -369,7 +375,8 @@ async def get_all_docs() -> List[Doc]:
                 title=record["doc_title"],
                 id=record["doc_id"],
                 status=_status,
-                note=record["doc_note"]
+                note=record["doc_note"],
+                is_built_in=record["doc_is_built_in"]
             )
         )
     return docs
@@ -377,6 +384,15 @@ async def get_all_docs() -> List[Doc]:
 
 async def delete_doc(doc_id: str) -> bool:
     """删除指定文档ID对应的文档"""
+    record = await milvus_client.query(
+        collection_name="docs_info",
+        filter=f'doc_id == "{doc_id}"',
+        limit=const_config.milvus_query_limit
+    )
+    record = record[0]
+    if record['doc_is_built_in']:
+        return False
+
     await milvus_client.delete(
         collection_name="docs_info",
         filter=f'doc_id == "{doc_id}"'
@@ -405,6 +421,7 @@ async def update_doc_info(doc_id: str, new_doc_title: str, new_doc_note: str) ->
             'doc_id': record["doc_id"],
             'doc_note': new_doc_note,
             'doc_status': record['doc_status'],
+            'doc_is_built_in': record['doc_is_built_in'],
             'dummy_vector': record['dummy_vector']
         }
     )

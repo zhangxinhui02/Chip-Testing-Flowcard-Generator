@@ -35,6 +35,12 @@ doc_status = FieldSchema(
     description='Document status: 0=ok 1=creating 2=failed'
 )
 
+doc_is_built_in = FieldSchema(
+    name="doc_is_built_in",
+    dtype=DataType.BOOL,
+    description='Is document built in'
+)
+
 dummy_vector = FieldSchema(
     name="dummy_vector",
     dtype=DataType.FLOAT_VECTOR,

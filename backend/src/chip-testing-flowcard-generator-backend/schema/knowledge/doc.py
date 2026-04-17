@@ -6,3 +6,4 @@ class Doc(BaseModel):
     id: str
     status: Literal['ok', 'creating', 'failed']
     note: str = ''
+    is_built_in: bool = False
