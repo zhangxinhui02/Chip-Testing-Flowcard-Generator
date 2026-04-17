@@ -1,5 +1,6 @@
 """knowledge模块的辅助模块，包含一些底层处理函数"""
 import os
+import logging
 import aiohttp
 from typing import Literal, List
 from pymilvus import AsyncMilvusClient
@@ -10,6 +11,7 @@ import task_manager
 from config import const_config, pdf_craft_config, reranking_model_config
 from schema.milvus_collection import doc_schema
 
+logger = logging.getLogger(__name__)
 milvus_client: AsyncMilvusClient | None = None
 embedding_model: OllamaEmbeddings | None = None
 
@@ -105,8 +107,11 @@ async def chunks_to_db(chunks_dir: str, doc_id: str):
         schema=doc_schema
     )
     # 向量化所有chunks并入库
-    for _id, chunk in enumerate(os.listdir(chunks_dir)):
-        with open(os.path.join(chunks_dir, chunk), 'r', encoding='utf-8') as f:
+    chunk_files = os.listdir(chunks_dir)
+    _length = len(chunk_files)
+    for _id, chunk_file in enumerate(chunk_files):
+        logger.info('Processing chunk [%s/%s]', _id + 1, _length)
+        with open(os.path.join(chunks_dir, chunk_file), 'r', encoding='utf-8') as f:
             content = f.read()
         vector = await vectorize_chunks(content)
         await milvus_client.insert(
@@ -188,6 +193,7 @@ async def rerank(query: str, docs: list[str], k: int = 10) -> list[str]:
                     "documents": docs
                 }
         ) as resp:
+            a = await resp.content.read()
             result = await resp.json()
 
             reranked_docs = []

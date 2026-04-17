@@ -8,7 +8,7 @@ from langchain_ollama import OllamaEmbeddings
 from config import const_config, embedding_model_config, milvus_config
 from schema.milvus_collection import docs_info_schema
 from schema.knowledge import Doc
-import knowledge_helper as helper
+import component.knowledge_helper as helper
 import util
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ async def init_milvus_database():
     logger.debug('Milvus Server Info:')
     logger.debug('\tURL: %s', milvus_config.url)
     logger.debug('\tDatabase: %s', milvus_config.database)
-    milvus_client: AsyncMilvusClient = AsyncMilvusClient(
+    milvus_client = AsyncMilvusClient(
         uri=milvus_config.url,
         token=milvus_config.token,
         db_name=milvus_config.database,
@@ -116,7 +116,7 @@ async def init_milvus_database():
     if len(built_in_doc_titles) > 0:
         _exist_built_in_docs = await milvus_client.query(
             collection_name="docs_info",
-            filter=f'doc_title == {str(built_in_doc_titles)}',
+            filter=f'doc_title in {str(built_in_doc_titles)}',
             output_fields=["doc_title", "doc_id"]
         )
         _exist_built_in_docs = [_record['doc_title'] for _record in _exist_built_in_docs]
@@ -321,19 +321,19 @@ async def update_doc_info(doc_id: str, new_doc_title: str, new_doc_note: str) ->
 
 async def query_from_doc(query: str, doc_id: str, k: int = 10, reranking_k: int | None = None) -> List[str]:
     """在指定文档中查找k条语义最相关的内容。如果指定了reranking_k参数，则按照此参数查找并返回重排序后的k条结果。"""
-    assert (bool(reranking_k) is False) or (reranking_k <= k), '`reranking_k` must be greater than `k`.'
+    assert (bool(reranking_k) is False) or (reranking_k >= k), '`reranking_k` must be equal or greater than `k`.'
     vector = await embedding_model.aembed_query(query)
     await milvus_client.load_collection(f'doc_{doc_id}')
     results = await milvus_client.search(
         collection_name=f"doc_{doc_id}",
         data=[vector],
         anns_field="vector",
-        param={"metric_type": "COSINE"},
+        search_params={"metric_type": "COSINE"},
         limit=reranking_k if reranking_k else k,
         output_fields=["content"]
     )
-    await milvus_client.release_collection(f'doc_{doc_id}')
     results = [result['content'] for result in results[0]]
+    await milvus_client.release_collection(f'doc_{doc_id}')
 
     if reranking_k:
         results = await helper.rerank(query, results, k)

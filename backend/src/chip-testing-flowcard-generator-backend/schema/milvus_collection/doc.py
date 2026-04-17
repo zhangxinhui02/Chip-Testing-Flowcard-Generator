@@ -1,7 +1,7 @@
 """Doc的表结构"""
 from pymilvus import CollectionSchema, FieldSchema, DataType
 
-from config import embedding_model_config
+from config import embedding_model_config, const_config
 
 primary_key = FieldSchema(
     name="id",
@@ -12,7 +12,7 @@ primary_key = FieldSchema(
 content = FieldSchema(
     name="content",
     dtype=DataType.VARCHAR,
-    max_length=10000,
+    max_length=const_config.milvus_content_max_length,
     description='Chunk content'
 )
 

@@ -10,6 +10,7 @@ class ConstConfig(BaseModel):
     temp_dir: str = 'temp'  # 临时工作目录
     api_prefix: str = '/api'
     milvus_query_limit: int = 10000
+    milvus_content_max_length: int = 50000
 
 
 class CommonConfig(BaseModel):

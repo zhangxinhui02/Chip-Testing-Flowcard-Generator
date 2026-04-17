@@ -49,6 +49,6 @@ dummy_vector = FieldSchema(
 )
 
 docs_info_schema = CollectionSchema(
-    fields=[primary_key, doc_title, doc_id, doc_status, dummy_vector],
+    fields=[primary_key, doc_title, doc_id, doc_note, doc_status, doc_is_built_in, dummy_vector],
     description="Documents info collection"
 )
