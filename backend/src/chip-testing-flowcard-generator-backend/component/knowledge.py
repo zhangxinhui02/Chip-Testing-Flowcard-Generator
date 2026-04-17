@@ -134,7 +134,7 @@ async def vectorize_doc_to_db(
         doc_note: str | None = None
 ) -> bool:
     """
-    向量化文档内容并保存至向量数据库
+    向量化文档内容并保存至向量数据库，此任务耗时较长，需要异步处理
     :param doc_title: 文档标题
     :param doc_path: 文档路径
     :param doc_type: 文档类型
@@ -372,3 +372,39 @@ async def get_all_docs() -> List[Doc]:
             )
         )
     return docs
+
+
+async def delete_doc(doc_id: str) -> bool:
+    """删除指定文档ID对应的文档"""
+    await milvus_client.delete(
+        collection_name="docs_info",
+        filter=f'doc_id == "{doc_id}"'
+    )
+    await milvus_client.drop_collection(f'doc_{doc_id}')
+    return True
+
+
+async def update_doc_info(doc_id: str, new_doc_title: str, new_doc_note: str) -> bool:
+    """修改文档的信息"""
+    record = await milvus_client.query(
+        collection_name="docs_info",
+        filter=f'doc_id == "{doc_id}"',
+        limit=10000
+    )
+    record = record[0]
+
+    await milvus_client.delete(
+        collection_name="docs_info",
+        filter=f'doc_id == "{doc_id}"'
+    )
+    await milvus_client.insert(
+        f'docs_info',
+        {
+            'doc_title': new_doc_title,
+            'doc_id': record["doc_id"],
+            'doc_note': new_doc_note,
+            'doc_status': record['doc_status'],
+            'dummy_vector': record['dummy_vector']
+        }
+    )
+    return True
