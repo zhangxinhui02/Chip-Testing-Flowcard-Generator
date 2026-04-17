@@ -132,14 +132,14 @@ async def vectorize_doc_to_db(
         doc_path: str,
         doc_type: Literal['image', 'pdf', 'markdown', 'txt'],
         doc_note: str | None = None
-) -> str:
+) -> bool:
     """
     向量化文档内容并保存至向量数据库
     :param doc_title: 文档标题
     :param doc_path: 文档路径
     :param doc_type: 文档类型
     :param doc_note: 文档备注
-    :return: 文档ID
+    :return: 是否处理成功
     """
     # 随机生成doc_id
     doc_id = util.generate_unique_id(unique_checking_sequence=await __get_all_doc_ids())
@@ -342,6 +342,8 @@ async def vectorize_doc_to_db(
             shutil.rmtree(_path)
         else:
             logger.error('Failed to delete unknown temporary path: %s', _path)
+
+    return is_preprocess_ok
 
 
 async def get_all_docs() -> List[Doc]:
