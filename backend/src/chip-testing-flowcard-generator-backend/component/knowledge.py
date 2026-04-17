@@ -122,8 +122,13 @@ async def init_milvus_database():
         _exist_built_in_docs = [_record['doc_title'] for _record in _exist_built_in_docs]
         for _doc_title in built_in_doc_titles:
             if _doc_title not in _exist_built_in_docs:
-                doc_id = util.generate_unique_id(unique_checking_sequence=await helper.get_all_doc_ids())
-                pass
+                await vectorize_doc_to_db(
+                    _doc_title,
+                    os.path.join(built_in_docs_dir, _doc_title, 'chunks'),
+                    'chunks',
+                    '',
+                    True
+                )
 
     logger.info('Database `%s` initialized.', milvus_config.database)
 
@@ -131,7 +136,7 @@ async def init_milvus_database():
 async def vectorize_doc_to_db(
         doc_title: str,
         doc_path: str,
-        doc_type: Literal['image', 'pdf', 'markdown', 'txt'],
+        doc_type: Literal['image', 'pdf', 'markdown', 'txt', 'chunks'],
         doc_note: str = '',
         doc_is_built_in: bool = False
 ) -> bool:
@@ -155,75 +160,75 @@ async def vectorize_doc_to_db(
             'doc_id': doc_id,
             'doc_note': doc_note,
             'doc_status': 1,  # CREATING
-            'doc_is_built_in': False,
+            'doc_is_built_in': doc_is_built_in,
             'dummy_vector': [.0, .0]
         }
     )
 
-    # 将文件复制到持久存储中
-    _original_file_name = os.path.basename(doc_path)
-    storaged_file_path = os.path.join(storage_dir, f'{doc_id}-{_original_file_name}')
-    shutil.copyfile(doc_path, storaged_file_path)
-
     is_preprocess_ok = False  # 存储所有流程的完成状态
     tmp_path = []  # 存储待清理的临时文件和目录
 
-    # 图片：先转PDF，再转markdown，最后分片
-    if doc_type == 'image':
-        _input_image_path = storaged_file_path
-        _tmp_pdf_path = os.path.join(temp_dir, f'{doc_id}.pdf')
-        _tmp_markdown_path = os.path.abspath(os.path.join(temp_dir, f'{doc_id}.md'))
-        _tmp_markdown_assets_dir = f'{doc_id}-assets/'
-        _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
-        tmp_path.extend([
-            _tmp_pdf_path, _tmp_markdown_path, os.path.join(temp_dir, _tmp_markdown_assets_dir), _tmp_chunks_dir
-        ])
+    if not doc_is_built_in:
+        # 将文件复制到持久存储中
+        _original_file_name = os.path.basename(doc_path)
+        storaged_file_path = os.path.join(storage_dir, f'{doc_id}-{_original_file_name}')
+        shutil.copyfile(doc_path, storaged_file_path)
 
-        if await helper.a_image_to_pdf(_input_image_path, _tmp_pdf_path):
-            if await helper.a_pdf_to_markdown(_tmp_pdf_path, _tmp_markdown_path, _tmp_markdown_assets_dir):
+        # 图片：先转PDF，再转markdown，最后分片
+        if doc_type == 'image':
+            _input_image_path = storaged_file_path
+            _tmp_pdf_path = os.path.join(temp_dir, f'{doc_id}.pdf')
+            _tmp_markdown_path = os.path.abspath(os.path.join(temp_dir, f'{doc_id}.md'))
+            _tmp_markdown_assets_dir = f'{doc_id}-assets/'
+            _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
+            tmp_path.extend([
+                _tmp_pdf_path, _tmp_markdown_path, os.path.join(temp_dir, _tmp_markdown_assets_dir), _tmp_chunks_dir
+            ])
+
+            if await helper.a_image_to_pdf(_input_image_path, _tmp_pdf_path):
+                if await helper.a_pdf_to_markdown(_tmp_pdf_path, _tmp_markdown_path, _tmp_markdown_assets_dir):
+                    if await helper.a_slice_markdown_to_chunks(doc_title, _tmp_markdown_path, _tmp_chunks_dir):
+                        is_preprocess_ok = True
+
+        # PDF：先转markdown，再分片
+        elif doc_type == 'pdf':
+            _input_pdf_path = storaged_file_path
+            _tmp_markdown_path = os.path.abspath(os.path.join(temp_dir, f'{doc_id}.md'))
+            _tmp_markdown_assets_dir = f'{doc_id}-assets/'
+            _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
+            tmp_path.extend([
+                _tmp_markdown_path, os.path.join(temp_dir, _tmp_markdown_assets_dir), _tmp_chunks_dir
+            ])
+
+            if await helper.a_pdf_to_markdown(_input_pdf_path, _tmp_markdown_path, _tmp_markdown_assets_dir):
                 if await helper.a_slice_markdown_to_chunks(doc_title, _tmp_markdown_path, _tmp_chunks_dir):
                     is_preprocess_ok = True
 
-    # PDF：先转markdown，再分片
-    elif doc_type == 'pdf':
-        _input_pdf_path = storaged_file_path
-        _tmp_markdown_path = os.path.abspath(os.path.join(temp_dir, f'{doc_id}.md'))
-        _tmp_markdown_assets_dir = f'{doc_id}-assets/'
-        _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
-        tmp_path.extend([
-            _tmp_markdown_path, os.path.join(temp_dir, _tmp_markdown_assets_dir), _tmp_chunks_dir
-        ])
+        # markdown：直接分片
+        elif doc_type == 'markdown':
+            _input_markdown_path = os.path.abspath(storaged_file_path)
+            _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
+            tmp_path.extend([
+                _tmp_chunks_dir
+            ])
 
-        if await helper.a_pdf_to_markdown(_input_pdf_path, _tmp_markdown_path, _tmp_markdown_assets_dir):
-            if await helper.a_slice_markdown_to_chunks(doc_title, _tmp_markdown_path, _tmp_chunks_dir):
+            if await helper.a_slice_markdown_to_chunks(doc_title, _input_markdown_path, _tmp_chunks_dir):
                 is_preprocess_ok = True
 
-    # markdown：直接分片
-    elif doc_type == 'markdown':
-        _input_markdown_path = os.path.abspath(storaged_file_path)
-        _tmp_chunks_dir = os.path.abspath(os.path.join(temp_dir, f'{doc_id}-chunks/'))
-        tmp_path.extend([
-            _tmp_chunks_dir
-        ])
+        # TXT：待补充
+        else:  # txt
+            _tmp_chunks_dir = ''
+            # todo txt支持
+            pass
 
-        if await helper.a_slice_markdown_to_chunks(doc_title, _input_markdown_path, _tmp_chunks_dir):
-            is_preprocess_ok = True
-
-    # TXT：待补充
-    else:  # txt
-        _tmp_chunks_dir = ''
-        # todo txt支持
-        pass
+    # 如果doc_is_built_in，则输入必为chunks：直接向量化并入库
+    else:
+        _tmp_chunks_dir = doc_path
+        is_preprocess_ok = True
 
     # 全部流程都成功，向量化chunks并入库，标记文档可用；否则标记文档处理失败
     if is_preprocess_ok:
-        await helper.chunks_to_db(
-            _tmp_chunks_dir,
-            doc_id,
-            doc_title,
-            doc_note,
-            doc_is_built_in
-        )
+        await helper.chunks_to_db(_tmp_chunks_dir, doc_id)
     else:
         await helper.error(doc_id)
 

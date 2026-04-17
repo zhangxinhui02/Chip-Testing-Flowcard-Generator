@@ -97,7 +97,7 @@ async def get_all_doc_ids() -> List[str]:
     return [doc['doc_id'] for doc in results]
 
 
-async def chunks_to_db(chunks_dir: str, doc_id: str, doc_title: str, doc_note: str, doc_is_built_in: bool):
+async def chunks_to_db(chunks_dir: str, doc_id: str):
     """将指定目录内的所有chunks分片向量化并存储到到知识库内"""
     # 创建文档的Milvus Collection
     await milvus_client.create_collection(
@@ -130,6 +130,11 @@ async def chunks_to_db(chunks_dir: str, doc_id: str, doc_title: str, doc_note: s
         index_params=index_params
     )
     # 修改docs记录中的状态为OK
+    record = await milvus_client.query(
+        collection_name="docs_info",
+        filter=f'doc_id == "{doc_id}"'
+    )
+    record = record[0]
     await milvus_client.delete(
         f'docs_info',
         filter=f'doc_id == "{doc_id}"'
@@ -137,11 +142,11 @@ async def chunks_to_db(chunks_dir: str, doc_id: str, doc_title: str, doc_note: s
     await milvus_client.insert(
         f'docs_info',
         {
-            'doc_title': doc_title,
+            'doc_title': record['doc_title'],
             'doc_id': doc_id,
-            'doc_note': doc_note,
+            'doc_note': record['doc_note'],
             'doc_status': 0,  # OK
-            'doc_is_built_in': doc_is_built_in,
+            'doc_is_built_in': record['doc_is_built_in'],
             'dummy_vector': [.0, .0]
         }
     )
