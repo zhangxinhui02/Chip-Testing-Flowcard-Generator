@@ -22,6 +22,13 @@ doc_id = FieldSchema(
     description='Document ID'
 )
 
+doc_note = FieldSchema(
+    name="doc_note",
+    dtype=DataType.VARCHAR,
+    max_length=255,
+    description='Document note'
+)
+
 doc_status = FieldSchema(
     name="doc_status",
     dtype=DataType.INT8,
