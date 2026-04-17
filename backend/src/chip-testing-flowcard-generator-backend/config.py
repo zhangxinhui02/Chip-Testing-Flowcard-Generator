@@ -9,6 +9,7 @@ class ConstConfig(BaseModel):
     storage_dir: str = 'storage'  # 文件存储目录
     temp_dir: str = 'temp'  # 临时工作目录
     api_prefix: str = '/api'
+    milvus_query_limit: int = 10000
 
 
 class CommonConfig(BaseModel):

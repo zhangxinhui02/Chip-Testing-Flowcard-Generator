@@ -122,7 +122,7 @@ async def __get_all_doc_ids() -> List[str]:
         collection_name="docs_info",
         filter="",
         output_fields=["doc_id"],
-        limit=10000
+        limit=const_config.milvus_query_limit
     )
     return [doc['doc_id'] for doc in results]
 
@@ -352,7 +352,7 @@ async def get_all_docs() -> List[Doc]:
     records = await milvus_client.query(
         collection_name="docs_info",
         filter="",
-        limit=10000
+        limit=const_config.milvus_query_limit
     )
     for record in records:
         _status: Literal['ok', 'creating', 'failed'] = 'ok'
@@ -389,7 +389,7 @@ async def update_doc_info(doc_id: str, new_doc_title: str, new_doc_note: str) ->
     record = await milvus_client.query(
         collection_name="docs_info",
         filter=f'doc_id == "{doc_id}"',
-        limit=10000
+        limit=const_config.milvus_query_limit
     )
     record = record[0]
 
@@ -408,3 +408,17 @@ async def update_doc_info(doc_id: str, new_doc_title: str, new_doc_note: str) ->
         }
     )
     return True
+
+
+async def query_from_doc(content: str, doc_id: str, k: int = 10) -> List[str]:
+    """在指定文档中查找k条语义最相关的内容"""
+    vector = await embeddings_model.aembed_query(content)
+    results = await milvus_client.search(
+        collection_name=f"doc_{doc_id}",
+        data=[vector],
+        anns_field="vector",
+        param={"metric_type": "COSINE"},
+        limit=k,
+        output_fields=["content"]
+    )
+    return [result['content'] for result in results[0]]
