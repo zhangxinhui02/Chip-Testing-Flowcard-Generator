@@ -14,7 +14,7 @@ prefix = const_config.api_prefix
 @asynccontextmanager
 async def lifespan(_):
     """FastAPI生命周期管理器"""
-    await component.rag.init_milvus_database()
+    await component.knowledge.init_milvus_database()
     yield
     pass
 
