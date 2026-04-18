@@ -49,6 +49,7 @@ async def a_pdf_to_markdown(
             input_pdf_path,
             output_markdown_path,
             output_markdown_assets_dir,
+            pdf_craft_config.ocr_model_size,
             pdf_craft_config.proxy_enabled,
             pdf_craft_config.http_proxy,
             pdf_craft_config.https_proxy
