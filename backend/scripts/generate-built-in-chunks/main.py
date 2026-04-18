@@ -3,7 +3,7 @@ import os
 import pdf_craft
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
-DIR_NAME_FOR_DOC_TITLE = ''  # 工作目录路径，此目录的目录名会被读取为文档标题，并写入chunks
+DIR_NAME_FOR_DOC_TITLE = ''  # 需要在此处填写工作目录路径，此目录的目录名会被读取为文档标题，并写入chunks
 INPUT_PDF_PATH = os.path.join(DIR_NAME_FOR_DOC_TITLE, 'target.pdf')
 OUTPUT_MARKDOWN_PATH = os.path.join(DIR_NAME_FOR_DOC_TITLE, 'target.md')
 OUTPUT_MARKDOWN_ASSETS_DIR = os.path.join(DIR_NAME_FOR_DOC_TITLE, 'assets/')
@@ -17,6 +17,7 @@ pdf_craft.transform_markdown(
     pdf_path=INPUT_PDF_PATH,
     markdown_path=OUTPUT_MARKDOWN_PATH,
     markdown_assets_path=OUTPUT_MARKDOWN_ASSETS_DIR,
+    ocr_size='gundam'
 )
 
 with open(OUTPUT_MARKDOWN_PATH, 'r', encoding='utf-8') as f:
