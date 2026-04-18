@@ -48,6 +48,7 @@ class MilvusConfig(BaseModel):
 
 class PdfCraftConfig(BaseModel):
     """pdf-craft配置"""
+    ocr_model_size: Literal['tiny', 'small', 'base', 'large', 'gundam'] = 'gundam'
     proxy_enabled: bool = False
     http_proxy: str = ''
     https_proxy: str = ''

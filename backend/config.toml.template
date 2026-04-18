@@ -33,6 +33,7 @@ chunk_overlap = 200
 top_k = 4
 
 [pdf_craft]
+ocr_model_size= "gundam"  # 可选：tiny, small, base, large, gundam
 # pdf-craft需要连接huggingface.co以下载Deepseek OCR模型，部分网络环境可能需要代理
 proxy_enabled = false
 http_proxy = 'http://127.0.0.1:7890'
