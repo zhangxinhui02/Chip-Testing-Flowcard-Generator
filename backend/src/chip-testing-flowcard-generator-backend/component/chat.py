@@ -171,18 +171,22 @@ async def chat(
     reranking_k: int | None = None
 ) -> str:
     """与大语言模型交流，可选多个文档用于RAG"""
+    history = await __load_history(chat_id)
+    if len(history) == 0:
+        history.append(SystemMessage(prompts['common-pre-prompt']))
+        title = await __generate_chat_title(message)
+        await update_chat_title(chat_id, title)
+
     if len(using_doc_ids) > 0:
         results = await knowledge.query_from_docs(message, using_doc_ids, k=k, reranking_k=reranking_k)
         _docs_prompts = '\n\n'.join([f'<doc>\n{result}\n</docs>' for result in results])
-        _pre_prompt = prompts['common-pre-prompt']
         prompt = prompts['chat-with-docs'].format(
-            COMMON_PRE_PROMPT=_pre_prompt, QUESTION=message, DOCS=_docs_prompts
+            QUESTION=message, DOCS=_docs_prompts
         )
     else:
         prompt = prompts['chat']
-
-    history = await __load_history(chat_id)
     history.append(HumanMessage(prompt))
+
     response: AIMessage = await llm_client.ainvoke(history)
     history.append(response)
     await __dump_history(chat_id, history)

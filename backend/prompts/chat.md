@@ -1,5 +1,3 @@
-{COMMON_PRE_PROMPT}
-
 以下<question>标签内是用户提出的问题：
 
 <question>
