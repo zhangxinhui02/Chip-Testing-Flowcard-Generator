@@ -6,11 +6,13 @@ from pydantic import BaseModel
 
 class ConstConfig(BaseModel):
     """常量配置"""
+    prompts_dir: str = 'prompts'  # 提示词存储目录
     storage_dir: str = 'storage'  # 文件存储目录
     temp_dir: str = 'temp'  # 临时工作目录
     api_prefix: str = '/api'
     milvus_query_limit: int = 10000
     milvus_content_max_length: int = 50000
+    chat_histoy_cache_minutes: int = 30
 
 
 class CommonConfig(BaseModel):
