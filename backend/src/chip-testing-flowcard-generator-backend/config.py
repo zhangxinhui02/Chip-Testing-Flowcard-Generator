@@ -59,21 +59,21 @@ const_config = ConstConfig()
 common_config: CommonConfig | None = None
 llm_model_config: ModelConfig | None = None
 embedding_model_config: EmbeddingModelConfig | None = None
-reranking_model_config: ModelConfig | None = None
+reranker_model_config: ModelConfig | None = None
 milvus_config: MilvusConfig | None = None
 pdf_craft_config: PdfCraftConfig | None = None
 
 
 def __load_config():
     """从配置文件加载配置"""
-    global common_config, llm_model_config, embedding_model_config, reranking_model_config, milvus_config, \
+    global common_config, llm_model_config, embedding_model_config, reranker_model_config, milvus_config, \
         pdf_craft_config
     with open('config.toml', 'rb') as f:
         file_config = tomllib.load(f)
     common_config = CommonConfig(**file_config['common'])
     llm_model_config = ModelConfig(**file_config['model']['llm'])
     embedding_model_config = EmbeddingModelConfig(**file_config['model']['embedding'])
-    reranking_model_config = ModelConfig(**file_config['model']['reranking'])
+    reranker_model_config = ModelConfig(**file_config['model']['reranker'])
     milvus_config = MilvusConfig(**file_config['milvus'])
     pdf_craft_config = PdfCraftConfig(**file_config['pdf_craft'])
 

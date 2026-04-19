@@ -8,7 +8,7 @@ from langchain_ollama import OllamaEmbeddings
 
 import util
 import task_manager
-from config import const_config, pdf_craft_config, reranking_model_config
+from config import const_config, pdf_craft_config, reranker_model_config
 from schema.milvus_collection import doc_schema
 
 logger = logging.getLogger(__name__)
@@ -187,9 +187,9 @@ async def rerank(query: str, docs: list[str], k: int = 10) -> list[str]:
     assert k > 0, '`k` must be greater than 0'
     async with aiohttp.ClientSession() as session:
         async with session.post(
-                f"{reranking_model_config.base_url.rstrip('/')}/api/rerank",
+                f"{reranker_model_config.base_url.rstrip('/')}/api/rerank",
                 json={
-                    "model": reranking_model_config.model,
+                    "model": reranker_model_config.model,
                     "query": query,
                     "documents": docs
                 }
