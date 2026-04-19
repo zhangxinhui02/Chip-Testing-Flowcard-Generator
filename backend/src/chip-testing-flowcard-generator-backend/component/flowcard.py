@@ -22,7 +22,7 @@ llm_client = OpenAI(
 )
 flowcard_parser = PydanticOutputParser(pydantic_object=Flowcard)
 tests_parser = PydanticOutputParser(pydantic_object=Tests)
-prompts = []
+prompts = {}
 
 is_initialized = False
 
