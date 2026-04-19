@@ -31,8 +31,14 @@ chat_history_timeout = {}
 prompts = {}
 
 if not __is_initialized:
-    with open(os.path.join(chat_storage_dir, 'metadata.json'), 'r', encoding='utf-8') as _f:
-        cached_chat_metadata: dict = json.load(_f)
+    try:
+        with open(os.path.join(chat_storage_dir, 'metadata.json'), 'r', encoding='utf-8') as _f:
+            cached_chat_metadata: dict = json.load(_f)
+    except FileNotFoundError:
+        cached_chat_metadata: dict = {}
+        with open(os.path.join(chat_storage_dir, 'metadata.json'), 'w', encoding='utf-8') as _f:
+            _f.write(json.dumps(cached_chat_metadata, ensure_ascii=False, indent=4))
+
     for _title in ['common-pre-prompt', 'chat-with-docs', 'chat', 'generate-chat-title']:
         with open(os.path.join(prompts_dir, f'{_title}.md'), 'r', encoding='utf-8') as _f:
             prompts[_title]: str= _f.read()
@@ -44,7 +50,7 @@ async def __add_chat_metadata(chat_id: str, title: str):
     if cached_chat_metadata.get(chat_id, None) is None:
         cached_chat_metadata[chat_id] = {}
     cached_chat_metadata[chat_id]['title'] = title
-    async with aiofiles.open(os.path.join(chat_storage_dir, 'chats.json'), 'w', encoding='utf-8') as f:
+    async with aiofiles.open(os.path.join(chat_storage_dir, 'metadata.json'), 'w', encoding='utf-8') as f:
         await f.write(json.dumps(cached_chat_metadata, ensure_ascii=False, indent=4))
 
 
@@ -52,7 +58,7 @@ async def __delete_chat_metadata(chat_id: str):
     """删除指定chat_id的元信息"""
     if chat_id in cached_chat_metadata:
         del cached_chat_metadata[chat_id]
-        async with aiofiles.open(os.path.join(chat_storage_dir, 'chats.json'), 'w', encoding='utf-8') as f:
+        async with aiofiles.open(os.path.join(chat_storage_dir, 'metadata.json'), 'w', encoding='utf-8') as f:
             await f.write(json.dumps(cached_chat_metadata, ensure_ascii=False, indent=4))
 
 
@@ -60,7 +66,7 @@ async def __update_chat_metadata(chat_id: str, title: str):
     """修改指定chat_id的元信息"""
     if chat_id in cached_chat_metadata:
         cached_chat_metadata['title'] = title
-        async with aiofiles.open(os.path.join(chat_storage_dir, 'chats.json'), 'w', encoding='utf-8') as f:
+        async with aiofiles.open(os.path.join(chat_storage_dir, 'metadata.json'), 'w', encoding='utf-8') as f:
             await f.write(json.dumps(cached_chat_metadata, ensure_ascii=False, indent=4))
 
 

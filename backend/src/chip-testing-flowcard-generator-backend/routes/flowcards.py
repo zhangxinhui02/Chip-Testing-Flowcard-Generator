@@ -1,26 +1,46 @@
-from typing import Literal
 from fastapi import APIRouter
+from typing import Literal, Sequence
+
+from schema.flowcard import Flowcard
+from component import flowcard
 
 router = APIRouter(prefix='/flowcards', tags=['flowcards'])
 
 
-@router.get('/')
-def get_flowcards():
+@router.get('/', response_model=list[dict[str, Flowcard]])
+async def get_flowcards() -> list[dict[str, Flowcard]]:
     """获取所有历史生成的流程卡"""
-    pass
+    return await flowcard.get_flowcards()
 
 
-@router.get('/{flowcard_id}')
-def get_flowcard(flowcard_id: str):
-    """获取指定流程卡的详细信息"""
-    pass
+@router.delete('/{flowcard_id}', response_model=bool)
+async def get_flowcards(flowcard_id: str) -> bool:
+    """删除流程卡"""
+    return await flowcard.delete_flowcard(flowcard_id)
 
 
 @router.post('/')
-def create_flowcard(
-        title: str,
-        order_type: Literal['text', 'image', 'pdf'],
-        using_docs: list[str]
-) -> str:
-    """生成流程卡"""
-    pass
+async def create_flowcard(
+        order_doc_id: str | None = None,
+        order_message: str | None = None,
+        chip_code: str | None = None,
+        using_doc_ids: Sequence[str] = (),
+        k: int = 10,
+        reranking_k: int | None = None
+) -> tuple[str, Flowcard]:
+    """
+    生成新流程卡，返回ID和流程卡对象
+    必须至少提供order_doc_id或者order_message中的一者,order_doc_id优先
+    如果未提供order_doc_id而提供了order_message，那么必须提供chip_code
+    using_doc_ids内的文档ID对应的文档会参与到RAG检索中，留空则不进行RAG检索
+    k: RAG在每个文档中查找k条语义最相关的内容
+    reranking_k: RAG在每个文档中查找reranking_k条语义最相关的内容，重排序后取k条结果。如果为None，则不使用重排序（加快响应速度）
+    """
+    return await flowcard.geneate_flowcard(
+        order_doc_id,
+        order_message,
+        chip_code,
+        using_doc_ids,
+        k,
+        reranking_k
+    )
