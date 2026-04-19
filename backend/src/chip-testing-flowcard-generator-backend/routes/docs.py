@@ -3,7 +3,8 @@ import asyncio
 import logging
 import aiofiles
 from typing import Literal
-from fastapi import APIRouter, UploadFile, File
+from fastapi.responses import FileResponse
+from fastapi import APIRouter, UploadFile, File, Response
 
 from config import const_config
 from component import knowledge
@@ -11,8 +12,9 @@ from schema.knowledge import Doc
 from util import generate_unique_id
 
 logger = logging.getLogger(__name__)
-temp_file_path = os.path.join(const_config.temp_dir, 'route-docs')
-os.makedirs(temp_file_path, exist_ok=True)
+temp_file_dir = os.path.join(const_config.temp_dir, 'route-docs')
+storage_dir = os.path.join(const_config.storage_dir, 'knowledge')
+os.makedirs(temp_file_dir, exist_ok=True)
 router = APIRouter(prefix='/docs', tags=['docs'])
 
 
@@ -40,7 +42,7 @@ async def create_doc(
         file: UploadFile = File(...)
 ) -> bool:
     """创建文档。此任务耗时较长，会直接返回响应，后端会继续处理"""
-    _file_path = os.path.join(temp_file_path, file.filename if file.filename else generate_unique_id())
+    _file_path = os.path.join(temp_file_dir, file.filename if file.filename else generate_unique_id())
     async with aiofiles.open(_file_path, 'wb') as f:
         while chunk := await file.read(1024 * 1024):  # 1MB
             await f.write(chunk)
@@ -67,3 +69,23 @@ async def create_doc(
 async def delete_doc(doc_id: str):
     """删除文档"""
     return await knowledge.delete_doc(doc_id)
+
+
+@router.get('/{doc_id}/file', response_model=FileResponse | Response)
+async def get_doc_file(doc_id: str) -> FileResponse | Response:
+    """下载文档的原始文件"""
+    file_name = None
+    for _file_name in os.listdir(storage_dir):
+        if _file_name.startswith(f'{doc_id}-'):
+            file_name = _file_name
+            break
+
+    if file_name is None:
+        return Response(content='File not found', status_code=404)
+    else:
+        file_path = os.path.join(storage_dir, file_name)
+        original_file_name = file_name.lstrip(f'{doc_id}-')
+        return FileResponse(
+            path=file_path,
+            filename=original_file_name
+        )
