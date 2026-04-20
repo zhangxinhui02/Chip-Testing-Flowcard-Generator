@@ -1,0 +1,125 @@
+x-vllm-common: &vllm-common
+  image: vllm/vllm-openai:v0.19.1   # vllm-openai容器镜像
+  restart: unless-stopped
+  gpus: all
+  ipc: host
+  environment:
+    HF_TOKEN: ""  # Huggingface Token，用于解除下载模型的速率限制
+    HF_HUB_OFFLINE: '1'
+    VLLM_SERVER_DEV_MODE: "1"   # 用于模型的 sleep/wake 能力，以动态释放显存；必须在内网
+  volumes:
+    - /home/zxh/.cache/huggingface:/root/.cache/huggingface
+    - ./scripts/vllm-init-sleep-check.py:/vllm-init-sleep-check.py:ro
+  networks:
+    - chip_testing_flowcard_generator
+  healthcheck:
+    test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18080/health"]
+    interval: 3s
+    timeout: 3s
+    retries: 100
+    start_period: 30s
+  post_start:
+    - command: sh -lc 'python3 /vllm-init-sleep-check.py'
+
+services:
+  vllm-llm:
+    <<: *vllm-common
+    container_name: vllm-llm
+    entrypoint: ["vllm", "serve"]
+    command:  # Qwen/Qwen3.6-35B-A3B-FP8 模型的定制化参数
+      - "Qwen/Qwen3.6-35B-A3B-FP8"
+      - "--served-model-name"
+      - "qwen3.6-35b-a3b"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--reasoning-parser"
+      - "qwen3"
+      - "--language-model-only"
+      - "--max-model-len"
+      - "96K"
+      - "--gpu-memory-utilization"
+      - "0.84"
+      - "--enable-sleep-mode"
+      - "--enable-chunked-prefill"
+      - "--max-num-batched-tokens"
+      - "4096"
+      - "--max-num-seqs"
+      - "4"
+#      - "--api-key"
+#      - "${VLLM_API_KEY}"
+    expose:
+      - "8000"
+    ports:
+      - "18000:8000"
+
+  vllm-embedding:
+    <<: *vllm-common
+    container_name: vllm-embedding
+    entrypoint: ["vllm", "serve"]
+    command:  # Qwen/Qwen3-Embedding-0.6B 模型的定制化参数
+      - "Qwen/Qwen3-Embedding-0.6B"
+      - "--served-model-name"
+      - "qwen3-embedding-0.6b"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--runner"
+      - "pooling"
+      - "--max-model-len"
+      - "8K"
+      - "--gpu-memory-utilization"
+      - "0.1"
+      - "--enable-sleep-mode"
+#      - "--api-key"
+#      - "${VLLM_API_KEY}"
+    depends_on:
+      vllm-llm:
+        condition: service_healthy
+    expose:
+      - "8000"
+    ports:
+      - "18001:8000"
+
+  vllm-reranker:
+    <<: *vllm-common
+    container_name: vllm-reranker
+    entrypoint: ["vllm", "serve"]
+    command:  # Qwen/Qwen3-Reranker-0.6B 模型的定制化参数
+      - "Qwen/Qwen3-Reranker-0.6B"
+      - "--served-model-name"
+      - "qwen3-reranker-0.6b"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--runner"
+      - "pooling"
+      - "--max-model-len"
+      - "8K"
+      - "--gpu-memory-utilization"
+      - "0.1"
+      - "--enable-sleep-mode"
+      - "--hf-overrides"
+      - '{"architectures":["Qwen3ForSequenceClassification"],"classifier_from_token":["no","yes"],"is_original_qwen3_reranker":true}'
+      - "--chat-template"
+      - "/opt/templates/qwen3_reranker.jinja"
+#      - "--api-key"
+#      - "${VLLM_API_KEY}"
+    volumes:
+      - /home/zxh/.cache/huggingface:/root/.cache/huggingface
+      - ./scripts/vllm-init-sleep-check.py:/vllm-init-sleep-check.py:ro
+      - ./volume/vllm-reranker/templates:/opt/templates:ro
+    depends_on:
+      vllm-embedding:
+        condition: service_healthy
+    expose:
+      - "8000"
+    ports:
+      - "18002:8000"
+
+networks:
+  chip_testing_flowcard_generator:
+    driver: bridge
