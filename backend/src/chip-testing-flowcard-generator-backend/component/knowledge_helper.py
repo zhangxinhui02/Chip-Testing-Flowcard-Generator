@@ -4,7 +4,7 @@ import logging
 import aiohttp
 from typing import Literal, List
 from pymilvus import AsyncMilvusClient
-from langchain_ollama import OllamaEmbeddings
+from langchain_openai import OpenAIEmbeddings
 
 import util
 import task_manager
@@ -13,12 +13,12 @@ from schema.milvus_collection import doc_schema
 
 logger = logging.getLogger(__name__)
 milvus_client: AsyncMilvusClient | None = None
-embedding_model: OllamaEmbeddings | None = None
+embedding_model: OpenAIEmbeddings | None = None
 
 
 def init_helper(
         _milvus_client: AsyncMilvusClient,
-        _embedding_model: OllamaEmbeddings
+        _embedding_model: OpenAIEmbeddings
 ):
     """初始化辅助模块"""
     global milvus_client, embedding_model

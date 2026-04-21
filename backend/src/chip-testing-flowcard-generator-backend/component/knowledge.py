@@ -3,7 +3,7 @@ import shutil
 import logging
 from typing import Literal, List, Sequence
 from pymilvus import AsyncMilvusClient
-from langchain_ollama import OllamaEmbeddings
+from langchain_openai import OpenAIEmbeddings
 
 from config import const_config, embedding_model_config, milvus_config
 from schema.milvus_collection import docs_info_schema
@@ -18,7 +18,7 @@ storage_dir = os.path.join(const_config.storage_dir, 'knowledge')
 temp_dir = os.path.join(const_config.temp_dir, 'knowledge')
 
 milvus_client: AsyncMilvusClient | None = None
-embedding_model = OllamaEmbeddings(
+embedding_model = OpenAIEmbeddings(
     base_url=embedding_model_config.base_url,
     model=embedding_model_config.model
 )
