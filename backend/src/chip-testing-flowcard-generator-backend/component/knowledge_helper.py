@@ -1,29 +1,23 @@
 """knowledge模块的辅助模块，包含一些底层处理函数"""
 import os
 import logging
-import aiohttp
 from typing import Literal, List
 from pymilvus import AsyncMilvusClient
-from langchain_openai import OpenAIEmbeddings
 
-import util
-import task_manager
-from config import const_config, pdf_craft_config, reranker_model_config
+from config import const_config, pdf_craft_config
 from schema.milvus_collection import doc_schema
+from component import vllm_model
+import task_manager
+import util
 
 logger = logging.getLogger(__name__)
 milvus_client: AsyncMilvusClient | None = None
-embedding_model: OpenAIEmbeddings | None = None
 
 
-def init_helper(
-        _milvus_client: AsyncMilvusClient,
-        _embedding_model: OpenAIEmbeddings
-):
+def init_helper(_milvus_client: AsyncMilvusClient):
     """初始化辅助模块"""
-    global milvus_client, embedding_model
+    global milvus_client
     milvus_client = _milvus_client
-    embedding_model = _embedding_model
 
 
 # ----- 一些计算密集型任务的协程接口 -----
@@ -85,7 +79,7 @@ async def vectorize_chunks(chunk: str) -> List[float]:
     :param chunk: chunk文本
     :return: 向量
     """
-    vector = await embedding_model.aembed_query(chunk)
+    vector = await vllm_model.embedding_query(chunk)
     return vector
 
 
@@ -180,27 +174,3 @@ async def error(doc_id: str):
             'dummy_vector': [.0, .0]
         }
     )
-
-
-async def rerank(query: str, docs: list[str], k: int = 10) -> list[str]:
-    """传入查询文本和文档列表，返回排序后的最相关的k条记录"""
-    assert k > 0, '`k` must be greater than 0'
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-                f"{reranker_model_config.base_url.rstrip('/')}/api/rerank",
-                json={
-                    "model": reranker_model_config.model,
-                    "query": query,
-                    "documents": docs
-                }
-        ) as resp:
-            a = await resp.content.read()
-            result = await resp.json()
-
-            reranked_docs = []
-            for index, record in enumerate(result['results']):
-                if index >= k:
-                    break
-                reranked_docs.append(docs[record['index']])
-
-            return reranked_docs

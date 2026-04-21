@@ -2,24 +2,16 @@ import os
 import json
 import aiofiles
 from typing import Sequence
-from pydantic import SecretStr
-from langchain_openai import OpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
-from config import const_config, llm_model_config
+from config import const_config, common_config
 from schema.flowcard import Flowcard, Tests
+from component import knowledge, vllm_model
 from util import generate_unique_id
-from component import knowledge
 
 flowcard_path = os.path.join(const_config.flowcard_dir, 'flowcard.json')
 prompts_dir = const_config.prompts_dir
-llm_client = OpenAI(
-    api_key=SecretStr(llm_model_config.api_key),
-    base_url=llm_model_config.base_url,
-    model=llm_model_config.model,
-    temperature=0.7
-)
 flowcard_parser = PydanticOutputParser(pydantic_object=Flowcard)
 tests_parser = PydanticOutputParser(pydantic_object=Tests)
 prompts = {}
@@ -47,8 +39,14 @@ async def __get_tests_from_order_doc(doc_id: str) -> Tests:
         input_variables=['ORDER'],
         partial_variables={'FORMAT': tests_parser.get_format_instructions()}
     )
-    chain = prompt | llm_client | tests_parser
+    chain = prompt | vllm_model.llm_client | tests_parser
+
+    if common_config.low_gpu_memory_mode:
+        await vllm_model.wakeup('vllm-llm')
     tests: Tests = await chain.ainvoke({'ORDER': order})
+    if common_config.low_gpu_memory_mode:
+        await vllm_model.sleep('vllm-llm')
+
     return tests
 
 
@@ -139,8 +137,14 @@ async def geneate_flowcard(
     else:
         docs = ''
 
-    chain = prompt | llm_client | flowcard_parser
+    chain = prompt | vllm_model.llm_client | flowcard_parser
+
+    if common_config.low_gpu_memory_mode:
+        await vllm_model.wakeup('vllm-llm')
     flowcard: Flowcard = await chain.ainvoke({'DOCS': docs})
+    if common_config.low_gpu_memory_mode:
+        await vllm_model.sleep('vllm-llm')
+
     _flowcard_ids = [_flowcard['id'] for _flowcard in (await get_flowcards())]
     flowcard_id = generate_unique_id(unique_checking_sequence=_flowcard_ids)
 

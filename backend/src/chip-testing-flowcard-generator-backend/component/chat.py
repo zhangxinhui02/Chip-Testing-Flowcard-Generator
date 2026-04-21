@@ -2,29 +2,19 @@ import os
 import json
 import aiofiles
 from typing import Sequence
-from pydantic import SecretStr
 from datetime import datetime, timedelta
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 
-from config import const_config, llm_model_config
+from config import const_config, common_config
+from component import knowledge, vllm_model
 from util import generate_unique_id
 from schema.chat import ChatTitle
-from component import knowledge
 
 chat_storage_dir = os.path.join(const_config.storage_dir, 'chat')
 prompts_dir = const_config.prompts_dir
-
-llm_client = ChatOpenAI(
-    api_key=SecretStr(llm_model_config.api_key),
-    base_url=llm_model_config.base_url,
-    model=llm_model_config.model,
-    temperature=0.7
-)
 generate_title_parser = PydanticOutputParser(pydantic_object=ChatTitle)
-
 __is_initialized = False
 cached_chat_history = {}
 chat_history_timeout = {}
@@ -156,8 +146,14 @@ async def __generate_chat_title(message: str) -> str:
         input_variables=['MESSAGE'],
         partial_variables={'FORMAT': generate_title_parser.get_format_instructions()}
     )
-    chain = prompt | llm_client | generate_title_parser
+    chain = prompt | vllm_model.llm_client | generate_title_parser
+
+    if common_config.low_gpu_memory_mode:
+        await vllm_model.wakeup('vllm-llm')
     chat_title: ChatTitle = await chain.ainvoke({'MESSAGE': message})
+    if common_config.low_gpu_memory_mode:
+        await vllm_model.sleep('vllm-llm')
+
     return chat_title.title
 
 
@@ -213,7 +209,7 @@ async def chat(
         prompt = prompts['chat']
     history.append(HumanMessage(prompt))
 
-    response: AIMessage = await llm_client.ainvoke(history)
+    response: AIMessage = await vllm_model.chat_llm_invoke(history)
     history.append(response)
     await dump_history(chat_id, history)
     return response.content

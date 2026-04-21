@@ -25,6 +25,7 @@ class CommonConfig(BaseModel):
     log_rotation_days: int = 30
     common_task_parallel_processing_count: int = 4
     gpu_task_parallel_processing_count: int = 1
+    low_gpu_memory_mode: bool = False
 
 
 class ModelConfig(BaseModel):

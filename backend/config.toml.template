@@ -6,6 +6,7 @@ log_level = "INFO"
 log_rotation_days = 30
 common_task_parallel_processing_count = 4  # 普通的后台任务的并行限制数量
 gpu_task_parallel_processing_count = 1  # GPU密集型后台任务的并行限制数量
+low_gpu_memory_mode = false
 
 [model]
 [model.llm]

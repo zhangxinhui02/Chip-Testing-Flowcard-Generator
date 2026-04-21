@@ -1,14 +1,14 @@
 import os
 import shutil
 import logging
-from typing import Literal, List, Sequence
 from pymilvus import AsyncMilvusClient
-from langchain_openai import OpenAIEmbeddings
+from typing import Literal, List, Sequence
 
-from config import const_config, embedding_model_config, milvus_config
+from config import const_config, milvus_config
 from schema.milvus_collection import docs_info_schema
-from schema.knowledge import Doc
 import component.knowledge_helper as helper
+from component import vllm_model
+from schema.knowledge import Doc
 import util
 
 logger = logging.getLogger(__name__)
@@ -18,10 +18,6 @@ storage_dir = os.path.join(const_config.storage_dir, 'knowledge')
 temp_dir = os.path.join(const_config.temp_dir, 'knowledge')
 
 milvus_client: AsyncMilvusClient | None = None
-embedding_model = OpenAIEmbeddings(
-    base_url=embedding_model_config.base_url,
-    model=embedding_model_config.model
-)
 
 
 async def init_milvus_database():
@@ -45,7 +41,7 @@ async def init_milvus_database():
     logger.info('Connected to Milvus server')
 
     # 初始化helper模块
-    helper.init_helper(milvus_client, embedding_model)
+    helper.init_helper(milvus_client)
 
     # 检查数据库
     logger.info('Initializing database `%s`...', milvus_config.database)
@@ -322,7 +318,7 @@ async def update_doc_info(doc_id: str, new_doc_title: str, new_doc_note: str) ->
 async def query_from_doc(query: str, doc_id: str, k: int = 10, reranking_k: int | None = None) -> List[str]:
     """在指定文档中查找k条语义最相关的内容。如果指定了reranking_k参数，则按照此参数查找并返回重排序后的k条结果。"""
     assert (bool(reranking_k) is False) or (reranking_k >= k), '`reranking_k` must be equal or greater than `k`.'
-    vector = await embedding_model.aembed_query(query)
+    vector = await vllm_model.embedding_query(query)
     # todo: Collection的加载和释放需要锁
     await milvus_client.load_collection(f'doc_{doc_id}')
     results = await milvus_client.search(
@@ -337,7 +333,7 @@ async def query_from_doc(query: str, doc_id: str, k: int = 10, reranking_k: int 
     await milvus_client.release_collection(f'doc_{doc_id}')
 
     if reranking_k:
-        results = await helper.rerank(query, results, k)
+        results = await vllm_model.reranker_query(query, results, k)
 
     return results
 
@@ -352,5 +348,5 @@ async def query_from_docs(query: str, doc_ids: Sequence[str], k: int = 10, reran
     for doc_id in set(doc_ids):
         results.extend(await query_from_doc(query, doc_id, reranking_k if reranking_k else k))
     if reranking_k:
-        results = await helper.rerank(query, results, k)
+        results = await vllm_model.reranker_query(query, results, k)
     return results
