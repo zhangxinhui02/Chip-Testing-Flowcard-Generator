@@ -7,6 +7,7 @@ from pydantic import BaseModel
 class ConstConfig(BaseModel):
     """常量配置"""
     prompts_dir: str = 'prompts'  # 提示词存储目录
+    built_in_docs_dir: str = 'built-in-docs'  # 内建文档存储目录
     storage_dir: str = 'storage'  # 文件存储目录
     flowcard_dir: str = 'flowcard'  # 文件存储目录
     temp_dir: str = 'temp'  # 临时工作目录

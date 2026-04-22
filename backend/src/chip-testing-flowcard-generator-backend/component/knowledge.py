@@ -13,10 +13,11 @@ import util
 
 logger = logging.getLogger(__name__)
 is_initialized = False
-built_in_docs_dir = 'built-in-docs'
+built_in_docs_dir = const_config.built_in_docs_dir
 storage_dir = os.path.join(const_config.storage_dir, 'knowledge')
 temp_dir = os.path.join(const_config.temp_dir, 'knowledge')
 
+built_in_docs_map = {}
 milvus_client: AsyncMilvusClient | None = None
 
 
@@ -125,6 +126,14 @@ async def init_milvus_database():
                     '',
                     True
                 )
+    global built_in_docs_map
+    _exist_built_in_docs = await milvus_client.query(
+        collection_name="docs_info",
+        filter="doc_is_built_in == true",
+        output_fields=["doc_title", "doc_id"]
+    )
+    for _doc in _exist_built_in_docs:
+        built_in_docs_map[_doc['doc_id']] = _doc['doc_title']
 
     logger.info('Database `%s` initialized.', milvus_config.database)
 
@@ -271,13 +280,7 @@ async def get_all_docs() -> List[Doc]:
 
 async def delete_doc(doc_id: str) -> bool:
     """删除指定文档ID对应的文档"""
-    record = await milvus_client.query(
-        collection_name="docs_info",
-        filter=f'doc_id == "{doc_id}"',
-        limit=const_config.milvus_query_limit
-    )
-    record = record[0]
-    if record['doc_is_built_in']:
+    if doc_id in built_in_docs_map:
         return False
 
     await milvus_client.delete(
@@ -290,6 +293,10 @@ async def delete_doc(doc_id: str) -> bool:
 
 async def update_doc_info(doc_id: str, new_doc_title: str, new_doc_note: str) -> bool:
     """修改文档的信息"""
+    if doc_id in built_in_docs_map:
+        if new_doc_title != built_in_docs_map[doc_id]:
+            return False  # 内建文档不允许修改标题
+
     record = await milvus_client.query(
         collection_name="docs_info",
         filter=f'doc_id == "{doc_id}"',
@@ -343,7 +350,7 @@ async def query_from_docs(query: str, doc_ids: Sequence[str], k: int = 10, reran
     在指定的若干个文档中分别查找k条语义最相关的内容，最后返回所有结果。
     如果指定了reranking_k参数，则按照此参数查找所有结果并返回重排序后的k条结果。
     """
-    assert (bool(reranking_k) is False) or (reranking_k <= k), '`reranking_k` must be greater than `k`.'
+    assert (bool(reranking_k) is False) or (reranking_k >= k), '`reranking_k` must be greater than `k`.'
     results = []
     for doc_id in set(doc_ids):
         results.extend(await query_from_doc(query, doc_id, reranking_k if reranking_k else k))

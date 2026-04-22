@@ -6,12 +6,6 @@ from langchain_openai import OpenAI, ChatOpenAI, OpenAIEmbeddings
 
 from config import common_config, llm_model_config, embedding_model_config, reranker_model_config
 
-llm_client = OpenAI(
-    api_key=SecretStr(llm_model_config.api_key),
-    base_url=llm_model_config.base_url,
-    model=llm_model_config.model,
-    temperature=0.7
-)
 chat_llm_client = ChatOpenAI(
     api_key=SecretStr(llm_model_config.api_key),
     base_url=llm_model_config.base_url,
@@ -25,30 +19,48 @@ embedding_client = OpenAIEmbeddings(
 )
 
 
-async def sleep(vllm_host: Literal['vllm-llm', 'vllm-embedding', 'vllm-reranker'], vllm_port: int = 8000):
+def __resolv_vllm_host_port(vllm_instance: Literal['vllm-llm', 'vllm-embedding', 'vllm-reranker']) -> tuple[str, int]:
+    """根据vllm实例的url，解析出主机名和端口"""
+    if vllm_instance == 'vllm-llm':
+        vllm_url = llm_model_config.base_url
+    elif vllm_instance == 'vllm-embedding':
+        vllm_url = embedding_model_config.base_url
+    else:
+        vllm_url = reranker_model_config.base_url
+
+    if vllm_url.startswith('http://'):
+        protocol = 'http://'
+    elif vllm_url.startswith('https://'):
+        protocol = 'https://'
+    else:
+        raise ValueError
+    vllm_url = vllm_url.lstrip(protocol)
+
+    vllm_url = vllm_url.split('/')[0]
+    if ':' in vllm_url:
+        vllm_url, vllm_port = vllm_url.split(':')[0], int(vllm_url.split(':')[1])
+    else:
+        vllm_port = 443 if protocol == 'https://' else 80
+
+    return vllm_url, vllm_port
+
+
+async def sleep(vllm_instance: Literal['vllm-llm', 'vllm-embedding', 'vllm-reranker']):
     """使指定的vllm实例对应的模型睡眠，释放显存"""
+    host, port = __resolv_vllm_host_port(vllm_instance)
     timeout = aiohttp.ClientTimeout(total=60)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(f"http://{vllm_host}:{vllm_port}/sleep?level=1") as resp:
+        async with session.post(f"http://{host}:{port}/sleep?level=1") as resp:
             resp.raise_for_status()
 
 
-async def wakeup(vllm_host: Literal['vllm-llm', 'vllm-embedding', 'vllm-reranker'], vllm_port: int = 8000):
+async def wakeup(vllm_instance: Literal['vllm-llm', 'vllm-embedding', 'vllm-reranker']):
     """唤醒指定的vllm实例对应的模型，占用显存"""
+    host, port = __resolv_vllm_host_port(vllm_instance)
     timeout = aiohttp.ClientTimeout(total=60)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(f"http://{vllm_host}:{vllm_port}/wake_up") as resp:
+        async with session.post(f"http://{host}:{port}/wake_up") as resp:
             resp.raise_for_status()
-
-
-async def llm_invoke(invoke_input):
-    """调用OpenAI对象，按需唤醒或睡眠模型"""
-    if common_config.low_gpu_memory_mode:
-        await wakeup('vllm-llm')
-    result = await llm_client.ainvoke(invoke_input)
-    if common_config.low_gpu_memory_mode:
-        await sleep('vllm-llm')
-    return result
 
 
 async def chat_llm_invoke(invoke_input):
@@ -88,8 +100,7 @@ async def reranker_query(query: str, docs: list[str], k: int = 10):
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(f"{reranker_model_config.base_url.rstrip('/')}/rerank", json=payload) as resp:
             resp.raise_for_status()
-            json_content = await resp.json()
-            result = json.loads(json_content)
+            result = await resp.json()
 
     if common_config.low_gpu_memory_mode:
         await sleep('vllm-reranker')

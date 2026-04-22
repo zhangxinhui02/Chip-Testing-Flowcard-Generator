@@ -19,11 +19,11 @@ async def lifespan(_):
     pass
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, docs_url='/swagger_docs')
 api_prefixed = APIRouter(prefix=prefix)
 api_prefixed.include_router(routes.docs_router)
 api_prefixed.include_router(routes.flowcard_router)
-api_prefixed.include_router(routes.qa_router)
+api_prefixed.include_router(routes.chat_router)
 app.include_router(api_prefixed)
 
 

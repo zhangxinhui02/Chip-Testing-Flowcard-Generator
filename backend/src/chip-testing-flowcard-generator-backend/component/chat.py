@@ -21,6 +21,7 @@ chat_history_timeout = {}
 prompts = {}
 
 if not __is_initialized:
+    os.makedirs(chat_storage_dir, exist_ok=True)
     try:
         with open(os.path.join(chat_storage_dir, 'metadata.json'), 'r', encoding='utf-8') as _f:
             cached_chat_metadata: dict = json.load(_f)
@@ -55,7 +56,7 @@ async def __delete_chat_metadata(chat_id: str):
 async def __update_chat_metadata(chat_id: str, title: str):
     """修改指定chat_id的元信息"""
     if chat_id in cached_chat_metadata:
-        cached_chat_metadata['title'] = title
+        cached_chat_metadata[chat_id]['title'] = title
         async with aiofiles.open(os.path.join(chat_storage_dir, 'metadata.json'), 'w', encoding='utf-8') as f:
             await f.write(json.dumps(cached_chat_metadata, ensure_ascii=False, indent=4))
 
@@ -118,7 +119,7 @@ async def __delete_timeout_chat_history_cache():
     """移除超时的聊天历史缓存"""
     now = datetime.now()
     for chat_id, delete_time in chat_history_timeout.items():
-        if delete_time >= now:
+        if delete_time <= now:
             del cached_chat_history[chat_id]
 
 
@@ -146,7 +147,7 @@ async def __generate_chat_title(message: str) -> str:
         input_variables=['MESSAGE'],
         partial_variables={'FORMAT': generate_title_parser.get_format_instructions()}
     )
-    chain = prompt | vllm_model.llm_client | generate_title_parser
+    chain = prompt | vllm_model.chat_llm_client | generate_title_parser
 
     if common_config.low_gpu_memory_mode:
         await vllm_model.wakeup('vllm-llm')
@@ -191,8 +192,7 @@ async def chat(
     chat_id: str | None = None
 ) -> str:
     """与大语言模型交流，可选多个文档用于RAG"""
-    if chat_id is None:  # 新聊天
-        chat_id: str = generate_unique_id(unique_checking_sequence=list(cached_chat_metadata.keys()))
+    if chat_id not in cached_chat_metadata:  # 新聊天
         title = await __generate_chat_title(message)
         await __add_chat_metadata(chat_id, title)
         history: list[BaseMessage] = [SystemMessage(prompts['common-pre-prompt'])]
@@ -201,15 +201,16 @@ async def chat(
 
     if len(using_doc_ids) > 0:
         results = await knowledge.query_from_docs(message, using_doc_ids, k=k, reranking_k=reranking_k)
-        _docs_prompts = '\n\n'.join([f'<doc>\n{result}\n</docs>' for result in results])
+        _docs_prompts = '\n\n'.join([f'<doc>\n{result}\n</doc>' for result in results])
         prompt = prompts['chat-with-docs'].format(
             QUESTION=message, DOCS=_docs_prompts
         )
     else:
-        prompt = prompts['chat']
+        prompt = prompts['chat'].format(QUESTION=message)
     history.append(HumanMessage(prompt))
 
     response: AIMessage = await vllm_model.chat_llm_invoke(history)
+    response.content = response.content.lstrip('\n\n')
     history.append(response)
     await dump_history(chat_id, history)
     return response.content

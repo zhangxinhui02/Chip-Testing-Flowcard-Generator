@@ -2,13 +2,13 @@ import os
 import asyncio
 import logging
 import aiofiles
-from typing import Literal
 from fastapi.responses import FileResponse
-from fastapi import APIRouter, UploadFile, File, Response
+from fastapi import APIRouter, UploadFile, File, HTTPException
 
+from schema.fastapi_request.knowledge import UpdateDocRequest, CreateDocRequest
+from schema.knowledge import Doc
 from config import const_config
 from component import knowledge
-from schema.knowledge import Doc
 from util import generate_unique_id
 
 logger = logging.getLogger(__name__)
@@ -18,27 +18,25 @@ os.makedirs(temp_file_dir, exist_ok=True)
 router = APIRouter(prefix='/docs', tags=['docs'])
 
 
-@router.get('/', response_model=list[Doc])
+@router.get('')
 async def get_docs() -> list[Doc]:
     """获取所有的文档信息"""
     return await knowledge.get_all_docs()
 
 
-@router.put('/{doc_id}', response_model=bool)
-async def update_doc(doc_id: str, new_title: str, new_note: str) -> bool:
+@router.put('/{doc_id}')
+async def update_doc(doc_id: str, request: UpdateDocRequest) -> bool:
     """修改文档的标题和备注"""
     try:
-        return await knowledge.update_doc_info(doc_id, new_title, new_note)
+        return await knowledge.update_doc_info(doc_id, request.new_title, request.new_note)
     except Exception as e:
         logger.error(e)
         return False
 
 
-@router.post('/', response_model=bool)
+@router.post('')
 async def create_doc(
-        title: str,
-        file_type: Literal['image', 'pdf', 'markdown', 'txt'],
-        note: str,
+        request: CreateDocRequest,
         file: UploadFile = File(...)
 ) -> bool:
     """创建文档。此任务耗时较长，会直接返回响应，后端会继续处理"""
@@ -54,10 +52,10 @@ async def create_doc(
 
     task = asyncio.create_task(  # 此任务耗时较长，直接返回响应，后台继续处理
         knowledge.vectorize_doc_to_db(
-            title,
+            request.title,
             _file_path,
-            file_type,
-            note,
+            request.file_type,
+            request.note,
             False
         )
     )
@@ -71,9 +69,24 @@ async def delete_doc(doc_id: str):
     return await knowledge.delete_doc(doc_id)
 
 
-@router.get('/{doc_id}/file', response_model=FileResponse | Response)
-async def get_doc_file(doc_id: str) -> FileResponse | Response:
+@router.get('/{doc_id}/file')
+async def get_doc_file(doc_id: str) -> FileResponse:
     """下载文档的原始文件"""
+    if doc_id in knowledge.built_in_docs_map:
+        _target_dir = os.path.join(const_config.built_in_docs_dir, knowledge.built_in_docs_map[doc_id])
+        _target_files = [_file for _file in os.listdir(_target_dir) if _file.startswith(f'target.')]
+
+        if len(_target_files) > 0:
+            if len(_target_files) > 1:
+                _target_files.remove('target.md')
+            file_path = os.path.join(_target_dir, _target_files[0])
+            return FileResponse(
+                path=file_path,
+                filename=f'{knowledge.built_in_docs_map[doc_id]}.{_target_files[0].split(".")[-1]}'
+            )
+        else:
+            raise HTTPException(status_code=404, detail="File not found")
+
     file_name = None
     for _file_name in os.listdir(storage_dir):
         if _file_name.startswith(f'{doc_id}-'):
@@ -81,7 +94,7 @@ async def get_doc_file(doc_id: str) -> FileResponse | Response:
             break
 
     if file_name is None:
-        return Response(content='File not found', status_code=404)
+        raise HTTPException(status_code=404, detail="File not found")
     else:
         file_path = os.path.join(storage_dir, file_name)
         original_file_name = file_name.lstrip(f'{doc_id}-')

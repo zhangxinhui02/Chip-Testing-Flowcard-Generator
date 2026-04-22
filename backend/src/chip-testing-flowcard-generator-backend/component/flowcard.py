@@ -19,6 +19,7 @@ prompts = {}
 is_initialized = False
 
 if not is_initialized:
+    os.makedirs(const_config.flowcard_dir, exist_ok=True)
     if not os.path.isfile(flowcard_path):
         with open(flowcard_path, 'w', encoding='utf-8') as _f:
             json.dump({}, _f, indent=4, ensure_ascii=False)
@@ -39,7 +40,7 @@ async def __get_tests_from_order_doc(doc_id: str) -> Tests:
         input_variables=['ORDER'],
         partial_variables={'FORMAT': tests_parser.get_format_instructions()}
     )
-    chain = prompt | vllm_model.llm_client | tests_parser
+    chain = prompt | vllm_model.chat_llm_client | tests_parser
 
     if common_config.low_gpu_memory_mode:
         await vllm_model.wakeup('vllm-llm')
@@ -50,17 +51,15 @@ async def __get_tests_from_order_doc(doc_id: str) -> Tests:
     return tests
 
 
-async def get_flowcards() -> list[dict[str, Flowcard]]:
+async def get_flowcards() -> dict[str, Flowcard]:
     """获取所有的历史流程卡ID和对象"""
     async with aiofiles.open(flowcard_path, 'r', encoding='utf-8') as f:
         content = await f.read()
     json_results: dict = json.loads(content)
-    return [
-        {
-            'id': _flowcard_id,
-            'flowcard': Flowcard.model_validate_json(json_results[_flowcard_id])
-        } for _flowcard_id in json_results
-    ]
+    results = {}
+    for _id, _json in json_results.items():
+        results[_id] = Flowcard.model_validate(_json)
+    return results
 
 
 async def delete_flowcard(flowcard_id: str) -> bool:
@@ -116,7 +115,7 @@ async def geneate_flowcard(
         assert chip_code
         query = order_message
         prompt = PromptTemplate(
-            template=prompts['flowcard-with-messages'],
+            template=prompts['flowcard-with-message'],
             input_variables=['DOCS'],
             partial_variables={
                 'CHIP_CODE': chip_code,
@@ -137,7 +136,7 @@ async def geneate_flowcard(
     else:
         docs = ''
 
-    chain = prompt | vllm_model.llm_client | flowcard_parser
+    chain = prompt | vllm_model.chat_llm_client | flowcard_parser
 
     if common_config.low_gpu_memory_mode:
         await vllm_model.wakeup('vllm-llm')

@@ -1,33 +1,26 @@
 from fastapi import APIRouter
-from typing import Literal, Sequence
 
+from schema.fastapi_request.flowcards import CreateFlowcardRequest
 from schema.flowcard import Flowcard
 from component import flowcard
 
 router = APIRouter(prefix='/flowcards', tags=['flowcards'])
 
 
-@router.get('/', response_model=list[dict[str, Flowcard]])
-async def get_flowcards() -> list[dict[str, Flowcard]]:
+@router.get('')
+async def get_flowcards() -> dict[str, Flowcard]:
     """获取所有历史生成的流程卡"""
     return await flowcard.get_flowcards()
 
 
-@router.delete('/{flowcard_id}', response_model=bool)
+@router.delete('/{flowcard_id}')
 async def get_flowcards(flowcard_id: str) -> bool:
     """删除流程卡"""
     return await flowcard.delete_flowcard(flowcard_id)
 
 
-@router.post('/')
-async def create_flowcard(
-        order_doc_id: str | None = None,
-        order_message: str | None = None,
-        chip_code: str | None = None,
-        using_doc_ids: Sequence[str] = (),
-        k: int = 10,
-        reranking_k: int | None = None
-) -> tuple[str, Flowcard]:
+@router.post('')
+async def create_flowcard(request: CreateFlowcardRequest) -> tuple[str, Flowcard]:
     """
     生成新流程卡，返回ID和流程卡对象
     必须至少提供order_doc_id或者order_message中的一者,order_doc_id优先
@@ -37,10 +30,10 @@ async def create_flowcard(
     reranking_k: RAG在每个文档中查找reranking_k条语义最相关的内容，重排序后取k条结果。如果为None，则不使用重排序（加快响应速度）
     """
     return await flowcard.geneate_flowcard(
-        order_doc_id,
-        order_message,
-        chip_code,
-        using_doc_ids,
-        k,
-        reranking_k
+        request.order_doc_id,
+        request.order_message,
+        request.chip_code,
+        request.using_doc_ids,
+        request.k,
+        request.reranking_k
     )

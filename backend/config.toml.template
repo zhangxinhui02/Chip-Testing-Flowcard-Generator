@@ -12,18 +12,18 @@ low_gpu_memory_mode = false
 [model.llm]
 base_url = 'http://ollama:11434/v1'
 api_key = ''
-model = 'qwen3.5:35b'
+model = 'Qwen/Qwen3.6-35B-A3B-FP8'
 
 [model.embedding]
 base_url = 'http://ollama:11434/v1'
 api_key = ''
-model = 'dengcao/Qwen3-Embedding-8B:Q5_K_M'
-dimension = 4096  # 此参数与embedding模型相关联，qwen3-embedding:8b的输出维度为4096
+model = 'Qwen/Qwen3-Embedding-0.6B'
+dimension = 1024  # 此参数与embedding模型相关联，qwen3-embedding:8b的输出维度为4096
 
 [model.reranker]
 base_url = 'http://ollama:11434/v1'
 api_key = ''
-model = 'dengcao/Qwen3-Reranker-8B:Q5_K_M'
+model = 'Qwen/Qwen3-Reranker-0.6B'
 
 [milvus]
 url = 'http://milvus:19530'

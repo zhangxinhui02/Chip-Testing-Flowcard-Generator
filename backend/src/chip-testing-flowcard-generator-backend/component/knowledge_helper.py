@@ -4,7 +4,7 @@ import logging
 from typing import Literal, List
 from pymilvus import AsyncMilvusClient
 
-from config import const_config, pdf_craft_config
+from config import const_config, common_config, pdf_craft_config
 from schema.milvus_collection import doc_schema
 from component import vllm_model
 import task_manager
@@ -73,16 +73,6 @@ async def a_slice_markdown_to_chunks(
 
 # ----------
 
-async def vectorize_chunks(chunk: str) -> List[float]:
-    """
-    向量化单个chunk
-    :param chunk: chunk文本
-    :return: 向量
-    """
-    vector = await vllm_model.embedding_query(chunk)
-    return vector
-
-
 async def get_all_doc_ids() -> List[str]:
     """获取所有文档ID列表"""
     results = await milvus_client.query(
@@ -102,13 +92,15 @@ async def chunks_to_db(chunks_dir: str, doc_id: str):
         schema=doc_schema
     )
     # 向量化所有chunks并入库
+    if common_config.low_gpu_memory_mode:
+        await vllm_model.wakeup('vllm-embedding')
     chunk_files = os.listdir(chunks_dir)
     _length = len(chunk_files)
     for _id, chunk_file in enumerate(chunk_files):
         logger.info('Processing chunk [%s/%s]', _id + 1, _length)
         with open(os.path.join(chunks_dir, chunk_file), 'r', encoding='utf-8') as f:
             content = f.read()
-        vector = await vectorize_chunks(content)
+        vector = await vllm_model.embedding_client.aembed_query(content)
         await milvus_client.insert(
             f'doc_{doc_id}',
             {
@@ -117,6 +109,8 @@ async def chunks_to_db(chunks_dir: str, doc_id: str):
                 'vector': vector
             }
         )
+    if common_config.low_gpu_memory_mode:
+        await vllm_model.sleep('vllm-embedding')
     # 建立索引
     index_params = milvus_client.prepare_index_params()
     index_params.add_index(
