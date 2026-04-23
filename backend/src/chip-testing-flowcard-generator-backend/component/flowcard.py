@@ -76,7 +76,34 @@ async def delete_flowcard(flowcard_id: str) -> bool:
     return True
 
 
+async def update_flowcard_title(flowcard_id: str, new_title: str) -> bool:
+    """修改指定流程卡的标题"""
+    new_title = new_title.strip()
+    if not new_title:
+        return False
+
+    async with aiofiles.open(flowcard_path, 'r', encoding='utf-8') as f:
+        content = await f.read()
+    json_flowcards = json.loads(content)
+
+    if flowcard_id not in json_flowcards:
+        return False
+
+    json_flowcards[flowcard_id]['title'] = new_title
+    async with aiofiles.open(flowcard_path, 'w', encoding='utf-8') as f:
+        await f.write(json.dumps(json_flowcards, indent=4, ensure_ascii=False))
+
+    return True
+
+
+def __default_flowcard_title(chip_code: str | None) -> str:
+    if chip_code:
+        return f'{chip_code} 测试流程卡'
+    return '芯片测试流程卡'
+
+
 async def geneate_flowcard(
+        title: str | None = None,
         order_doc_id: str | None = None,
         order_message: str | None = None,
         chip_code: str | None = None,
@@ -144,7 +171,9 @@ async def geneate_flowcard(
     if common_config.low_gpu_memory_mode:
         await vllm_model.sleep('vllm-llm')
 
-    _flowcard_ids = [_flowcard['id'] for _flowcard in (await get_flowcards())]
+    flowcard.title = title.strip() if title and title.strip() else __default_flowcard_title(chip_code)
+
+    _flowcard_ids = list((await get_flowcards()).keys())
     flowcard_id = generate_unique_id(unique_checking_sequence=_flowcard_ids)
 
     async with aiofiles.open(flowcard_path, 'r', encoding='utf-8') as f:

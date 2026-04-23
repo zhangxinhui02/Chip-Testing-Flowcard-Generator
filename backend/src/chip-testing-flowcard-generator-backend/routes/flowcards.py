@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from schema.fastapi_request.flowcards import CreateFlowcardRequest
+from schema.fastapi_request.flowcards import CreateFlowcardRequest, UpdateFlowcardTitleRequest
 from schema.flowcard import Flowcard
 from component import flowcard
 
@@ -19,6 +19,12 @@ async def get_flowcards(flowcard_id: str) -> bool:
     return await flowcard.delete_flowcard(flowcard_id)
 
 
+@router.put('/{flowcard_id}')
+async def update_flowcard_title(flowcard_id: str, request: UpdateFlowcardTitleRequest) -> bool:
+    """修改流程卡标题"""
+    return await flowcard.update_flowcard_title(flowcard_id, request.new_title)
+
+
 @router.post('')
 async def create_flowcard(request: CreateFlowcardRequest) -> tuple[str, Flowcard]:
     """
@@ -30,6 +36,7 @@ async def create_flowcard(request: CreateFlowcardRequest) -> tuple[str, Flowcard
     reranking_k: RAG在每个文档中查找reranking_k条语义最相关的内容，重排序后取k条结果。如果为None，则不使用重排序（加快响应速度）
     """
     return await flowcard.geneate_flowcard(
+        request.title,
         request.order_doc_id,
         request.order_message,
         request.chip_code,

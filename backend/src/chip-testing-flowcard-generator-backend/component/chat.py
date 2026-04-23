@@ -211,6 +211,8 @@ async def chat(
 
     response: AIMessage = await vllm_model.chat_llm_invoke(history)
     response.content = response.content.lstrip('\n\n')
+    history.pop(-1)
+    history.append(HumanMessage(message))
     history.append(response)
     await dump_history(chat_id, history)
     return response.content

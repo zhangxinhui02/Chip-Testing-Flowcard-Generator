@@ -2,8 +2,9 @@ import os
 import asyncio
 import logging
 import aiofiles
+from typing import Literal
 from fastapi.responses import FileResponse
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 
 from schema.fastapi_request.knowledge import UpdateDocRequest, CreateDocRequest
 from schema.knowledge import Doc
@@ -36,10 +37,13 @@ async def update_doc(doc_id: str, request: UpdateDocRequest) -> bool:
 
 @router.post('')
 async def create_doc(
-        request: CreateDocRequest,
+        title: str = Form(...),
+        file_type: Literal['image', 'pdf', 'markdown', 'txt'] = Form(...),
+        note: str = Form(''),
         file: UploadFile = File(...)
 ) -> bool:
     """创建文档。此任务耗时较长，会直接返回响应，后端会继续处理"""
+    request = CreateDocRequest(title=title, file_type=file_type, note=note)
     _file_path = os.path.join(temp_file_dir, file.filename if file.filename else generate_unique_id())
     async with aiofiles.open(_file_path, 'wb') as f:
         while chunk := await file.read(1024 * 1024):  # 1MB
