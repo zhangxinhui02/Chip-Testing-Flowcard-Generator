@@ -133,6 +133,13 @@ code {
   align-items: start;
 }
 
+.search-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 18px;
+  align-items: start;
+}
+
 .panel {
   min-width: 0;
   border: 1px solid #dbe2ee;
@@ -572,6 +579,116 @@ textarea {
   padding: 14px;
 }
 
+.search-main-panel {
+  overflow: hidden;
+}
+
+.search-summary {
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.search-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid #e4e9f2;
+}
+
+.search-form textarea {
+  min-height: 120px;
+}
+
+.search-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.search-results {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.search-empty {
+  border: 1px dashed #cdd6e5;
+  border-radius: 8px;
+  color: #667085;
+  padding: 24px 18px;
+  text-align: center;
+}
+
+.search-result-card {
+  border: 1px solid #e0e7f1;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 16px;
+}
+
+.search-result-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.search-result-rank {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.search-result-title-block {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.search-result-title-block h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.search-result-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.search-result-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.search-result-meta {
+  color: #667085;
+  font-size: 12px;
+}
+
+.search-result-content {
+  color: #172033;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .rag-panel {
   display: grid;
   gap: 14px;
@@ -677,6 +794,10 @@ textarea {
   .side-panel {
     position: static;
   }
+
+  .search-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 860px) {
@@ -690,7 +811,7 @@ textarea {
   }
 
   .main-nav nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .main-nav nav button {
@@ -707,6 +828,10 @@ textarea {
   }
 
   .split-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .search-layout {
     grid-template-columns: 1fr;
   }
 

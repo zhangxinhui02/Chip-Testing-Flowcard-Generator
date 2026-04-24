@@ -1,6 +1,12 @@
-import type { ChatMessage, ChatSummary, Doc, DocFileType, Flowcard } from './types';
+import type { ChatMessage, ChatSummary, Doc, DocFileType, Flowcard, SemanticSearchHit } from './types';
 
 const API_BASE = '/api';
+
+interface BackendSemanticSearchHit {
+  document_title: string;
+  hierarchy: string[];
+  content: string;
+}
 
 async function readError(response: Response): Promise<string> {
   const fallback = `${response.status} ${response.statusText}`;
@@ -11,7 +17,10 @@ async function readError(response: Response): Promise<string> {
       return body.detail;
     }
     if (Array.isArray(body?.detail)) {
-      return body.detail.map((item: { msg?: string }) => item.msg).filter(Boolean).join('；') || fallback;
+      return body.detail
+        .map((item: { msg?: string }) => item.msg)
+        .filter(Boolean)
+        .join('；') || fallback;
     }
     return JSON.stringify(body);
   } catch {
@@ -60,7 +69,29 @@ export const docsApi = {
   remove: (docId: string) =>
     requestJson<boolean>(`/docs/${encodeURIComponent(docId)}`, {
       method: 'DELETE'
-    })
+    }),
+  search: async (input: {
+    query: string;
+    usingDocIds: string[];
+    k: number;
+    rerankingK: number | null;
+  }) => {
+    const results = await requestJson<BackendSemanticSearchHit[]>('/docs/search', {
+      method: 'POST',
+      body: JSON.stringify({
+        query: input.query,
+        using_doc_ids: input.usingDocIds,
+        k: input.k,
+        reranking_k: input.rerankingK
+      })
+    });
+
+    return results.map((result) => ({
+      documentTitle: result.document_title,
+      hierarchy: result.hierarchy,
+      content: result.content
+    })) as SemanticSearchHit[];
+  }
 };
 
 export const chatsApi = {

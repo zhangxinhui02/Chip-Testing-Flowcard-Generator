@@ -1,6 +1,6 @@
 export type DocStatus = 'ok' | 'creating' | 'failed';
 export type DocFileType = 'image' | 'pdf' | 'markdown';
-export type ModuleKey = 'docs' | 'chat' | 'flowcards';
+export type ModuleKey = 'docs' | 'docSearch' | 'chat' | 'flowcards';
 
 export interface Doc {
   title: string;
@@ -8,6 +8,12 @@ export interface Doc {
   status: DocStatus;
   note: string;
   is_built_in: boolean;
+}
+
+export interface SemanticSearchHit {
+  documentTitle: string;
+  hierarchy: string[];
+  content: string;
 }
 
 export interface ChatSummary {

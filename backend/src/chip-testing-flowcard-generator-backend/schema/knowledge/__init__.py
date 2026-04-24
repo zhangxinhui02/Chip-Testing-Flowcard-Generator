@@ -1,3 +1,3 @@
-from .doc import Doc
+from .doc import Doc, SemanticSearchHit
 
-__all__ = [Doc]
+__all__ = [Doc, SemanticSearchHit]

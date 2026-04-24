@@ -144,7 +144,7 @@ export function KnowledgeBase({ docs, loading, error, onRefresh }: KnowledgeBase
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h2>知识库</h2>
+            <h2>知识库管理</h2>
             <p>{docs.length} 个文档</p>
           </div>
           <button className="icon-text-button secondary" type="button" onClick={onRefresh} disabled={loading}>

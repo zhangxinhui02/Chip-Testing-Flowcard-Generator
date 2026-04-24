@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BookOpen, ClipboardList, MessageSquareText } from 'lucide-react';
+import { BookOpen, ClipboardList, MessageSquareText, Search } from 'lucide-react';
 import { docsApi } from './api';
 import { Chat } from './modules/Chat';
 import { Flowcards } from './modules/Flowcards';
 import { KnowledgeBase } from './modules/KnowledgeBase';
+import { KnowledgeSearch } from './modules/KnowledgeSearch';
 import type { Doc, ModuleKey } from './types';
 
 const navItems: Array<{
@@ -11,7 +12,8 @@ const navItems: Array<{
   label: string;
   icon: typeof BookOpen;
 }> = [
-  { key: 'docs', label: '知识库', icon: BookOpen },
+  { key: 'docs', label: '知识库管理', icon: BookOpen },
+  { key: 'docSearch', label: '知识库语义搜索', icon: Search },
   { key: 'chat', label: '对话', icon: MessageSquareText },
   { key: 'flowcards', label: '芯片测试流程卡', icon: ClipboardList }
 ];
@@ -45,6 +47,9 @@ export default function App() {
   const activeContent = useMemo(() => {
     if (activeModule === 'docs') {
       return <KnowledgeBase docs={docs} loading={docsLoading} error={docsError} onRefresh={loadDocs} />;
+    }
+    if (activeModule === 'docSearch') {
+      return <KnowledgeSearch docs={docs} />;
     }
     if (activeModule === 'chat') {
       return <Chat docs={docs} />;

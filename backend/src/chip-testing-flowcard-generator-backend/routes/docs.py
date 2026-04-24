@@ -1,4 +1,5 @@
 import os
+import re
 import asyncio
 import logging
 import aiofiles
@@ -6,8 +7,8 @@ from typing import Literal
 from fastapi.responses import FileResponse
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 
-from schema.fastapi_request.knowledge import UpdateDocRequest, CreateDocRequest
-from schema.knowledge import Doc
+from schema.fastapi_request.knowledge import UpdateDocRequest, CreateDocRequest, SearchDocsRequest
+from schema.knowledge import Doc, SemanticSearchHit
 from config import const_config
 from component import knowledge
 from util import generate_unique_id
@@ -17,6 +18,42 @@ temp_file_dir = os.path.join(const_config.temp_dir, 'route-docs')
 storage_dir = os.path.join(const_config.storage_dir, 'knowledge')
 os.makedirs(temp_file_dir, exist_ok=True)
 router = APIRouter(prefix='/docs', tags=['docs'])
+
+
+def _parse_semantic_search_hit(raw_result: str) -> SemanticSearchHit:
+    normalized_result = raw_result.replace('\r\n', '\n')
+    first_delimiter = '\n\n---\n\n'
+    second_delimiter = '\n---\n\n'
+    first_index = normalized_result.find(first_delimiter)
+
+    if first_index >= 0:
+        title_part = normalized_result[:first_index].strip()
+        remaining = normalized_result[first_index + len(first_delimiter):]
+        second_index = remaining.find(second_delimiter)
+        if second_index >= 0:
+            hierarchy_part = remaining[:second_index].strip()
+            content_part = remaining[second_index + len(second_delimiter):].strip()
+        else:
+            hierarchy_part = ''
+            content_part = remaining.strip()
+    else:
+        parts = [part.strip() for part in re.split(r'\n\s*---\s*\n', normalized_result.strip(), maxsplit=2)]
+        title_part = parts[0] if len(parts) > 0 else ''
+        hierarchy_part = parts[1] if len(parts) > 1 else ''
+        content_part = parts[2] if len(parts) > 2 else normalized_result.strip()
+
+    document_title = re.sub(r'^文档标题[:：]\s*', '', title_part).strip()
+    hierarchy: list[str] = []
+    for line in hierarchy_part.splitlines():
+        line = line.strip()
+        if line.startswith('#'):
+            hierarchy.append(re.sub(r'^#+\s*', '', line).strip())
+
+    return SemanticSearchHit(
+        document_title=document_title,
+        hierarchy=[item for item in hierarchy if item],
+        content=content_part.strip()
+    )
 
 
 @router.get('')
@@ -71,6 +108,27 @@ async def create_doc(
 async def delete_doc(doc_id: str):
     """删除文档"""
     return await knowledge.delete_doc(doc_id)
+
+
+@router.post('/search')
+async def search_docs(request: SearchDocsRequest) -> list[SemanticSearchHit]:
+    """在指定文档内执行一次性语义搜索"""
+    if not request.query.strip():
+        raise HTTPException(status_code=400, detail='Query must not be empty')
+    if len(request.using_doc_ids) == 0:
+        raise HTTPException(status_code=400, detail='using_doc_ids must not be empty')
+
+    try:
+        results = await knowledge.query_from_docs(
+            request.query,
+            request.using_doc_ids,
+            request.k,
+            request.reranking_k
+        )
+    except AssertionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return [_parse_semantic_search_hit(result) for result in results]
 
 
 @router.get('/{doc_id}/file')
