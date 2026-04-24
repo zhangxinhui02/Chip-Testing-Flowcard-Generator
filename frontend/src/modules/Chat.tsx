@@ -66,9 +66,13 @@ export function Chat({ docs }: ChatProps) {
   }, []);
 
   useEffect(() => {
-    if (!selectedChatId || transientChatIds.has(selectedChatId)) {
+    if (!selectedChatId) {
       setMessages([]);
       setExpandedRagKeys(new Set());
+      return;
+    }
+
+    if (transientChatIds.has(selectedChatId)) {
       return;
     }
 
@@ -82,7 +86,7 @@ export function Chat({ docs }: ChatProps) {
       })
       .catch((err) => setError(err instanceof Error ? err.message : '对话加载失败'))
       .finally(() => setLoadingMessages(false));
-  }, [selectedChatId, transientChatIds]);
+  }, [selectedChatId]);
 
   const createChat = async () => {
     setError(null);
@@ -260,12 +264,20 @@ export function Chat({ docs }: ChatProps) {
                 onClick={() => {
                   setSelectedChatId(chat.id);
                   setEditingTitle(false);
+                  if (transientChatIds.has(chat.id)) {
+                    setMessages([]);
+                    setExpandedRagKeys(new Set());
+                  }
                 }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     setSelectedChatId(chat.id);
                     setEditingTitle(false);
+                    if (transientChatIds.has(chat.id)) {
+                      setMessages([]);
+                      setExpandedRagKeys(new Set());
+                    }
                   }
                 }}
               >
