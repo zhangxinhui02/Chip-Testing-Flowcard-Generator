@@ -563,6 +563,49 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.message-rag {
+  margin-top: 12px;
+  border-top: 1px solid #dbe2ee;
+  padding-top: 10px;
+}
+
+.message-rag-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 1px solid #d5deeb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #344054;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.message-rag-toggle:hover {
+  border-color: #9db8e9;
+  color: #1d4ed8;
+}
+
+.message-rag-count {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+.message-rag-results {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -624,6 +667,10 @@ textarea {
   border-radius: 8px;
   background: #f8fafc;
   padding: 16px;
+}
+
+.search-result-card.compact {
+  padding: 14px;
 }
 
 .search-result-header {

@@ -1,5 +1,4 @@
 import os
-import re
 import asyncio
 import logging
 import aiofiles
@@ -12,48 +11,13 @@ from schema.knowledge import Doc, SemanticSearchHit
 from config import const_config
 from component import knowledge
 from util import generate_unique_id
+from util.semantic_search import parse_semantic_search_hit
 
 logger = logging.getLogger(__name__)
 temp_file_dir = os.path.join(const_config.temp_dir, 'route-docs')
 storage_dir = os.path.join(const_config.storage_dir, 'knowledge')
 os.makedirs(temp_file_dir, exist_ok=True)
 router = APIRouter(prefix='/docs', tags=['docs'])
-
-
-def _parse_semantic_search_hit(raw_result: str) -> SemanticSearchHit:
-    normalized_result = raw_result.replace('\r\n', '\n')
-    first_delimiter = '\n\n---\n\n'
-    second_delimiter = '\n---\n\n'
-    first_index = normalized_result.find(first_delimiter)
-
-    if first_index >= 0:
-        title_part = normalized_result[:first_index].strip()
-        remaining = normalized_result[first_index + len(first_delimiter):]
-        second_index = remaining.find(second_delimiter)
-        if second_index >= 0:
-            hierarchy_part = remaining[:second_index].strip()
-            content_part = remaining[second_index + len(second_delimiter):].strip()
-        else:
-            hierarchy_part = ''
-            content_part = remaining.strip()
-    else:
-        parts = [part.strip() for part in re.split(r'\n\s*---\s*\n', normalized_result.strip(), maxsplit=2)]
-        title_part = parts[0] if len(parts) > 0 else ''
-        hierarchy_part = parts[1] if len(parts) > 1 else ''
-        content_part = parts[2] if len(parts) > 2 else normalized_result.strip()
-
-    document_title = re.sub(r'^文档标题[:：]\s*', '', title_part).strip()
-    hierarchy: list[str] = []
-    for line in hierarchy_part.splitlines():
-        line = line.strip()
-        if line.startswith('#'):
-            hierarchy.append(re.sub(r'^#+\s*', '', line).strip())
-
-    return SemanticSearchHit(
-        document_title=document_title,
-        hierarchy=[item for item in hierarchy if item],
-        content=content_part.strip()
-    )
 
 
 @router.get('')
@@ -67,23 +31,23 @@ async def update_doc(doc_id: str, request: UpdateDocRequest) -> bool:
     """修改文档的标题和备注"""
     try:
         return await knowledge.update_doc_info(doc_id, request.new_title, request.new_note)
-    except Exception as e:
-        logger.error(e)
+    except Exception as exc:
+        logger.error(exc)
         return False
 
 
 @router.post('')
 async def create_doc(
-        title: str = Form(...),
-        file_type: Literal['image', 'pdf', 'markdown', 'txt'] = Form(...),
-        note: str = Form(''),
-        file: UploadFile = File(...)
+    title: str = Form(...),
+    file_type: Literal['image', 'pdf', 'markdown', 'txt'] = Form(...),
+    note: str = Form(''),
+    file: UploadFile = File(...)
 ) -> bool:
     """创建文档。此任务耗时较长，会直接返回响应，后端会继续处理"""
     request = CreateDocRequest(title=title, file_type=file_type, note=note)
     _file_path = os.path.join(temp_file_dir, file.filename if file.filename else generate_unique_id())
     async with aiofiles.open(_file_path, 'wb') as f:
-        while chunk := await file.read(1024 * 1024):  # 1MB
+        while chunk := await file.read(1024 * 1024):
             await f.write(chunk)
 
     def _clean(_: asyncio.Task):
@@ -91,7 +55,7 @@ async def create_doc(
         if os.path.isfile(_file_path):
             os.remove(_file_path)
 
-    task = asyncio.create_task(  # 此任务耗时较长，直接返回响应，后台继续处理
+    task = asyncio.create_task(
         knowledge.vectorize_doc_to_db(
             request.title,
             _file_path,
@@ -100,7 +64,7 @@ async def create_doc(
             False
         )
     )
-    task.add_done_callback(_clean)  # 清理临时文件
+    task.add_done_callback(_clean)
     return True
 
 
@@ -128,7 +92,7 @@ async def search_docs(request: SearchDocsRequest) -> list[SemanticSearchHit]:
     except AssertionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return [_parse_semantic_search_hit(result) for result in results]
+    return [parse_semantic_search_hit(result) for result in results]
 
 
 @router.get('/{doc_id}/file')
@@ -136,18 +100,17 @@ async def get_doc_file(doc_id: str) -> FileResponse:
     """下载文档的原始文件"""
     if doc_id in knowledge.built_in_docs_map:
         _target_dir = os.path.join(const_config.built_in_docs_dir, knowledge.built_in_docs_map[doc_id])
-        _target_files = [_file for _file in os.listdir(_target_dir) if _file.startswith(f'target.')]
+        _target_files = [_file for _file in os.listdir(_target_dir) if _file.startswith('target.')]
 
         if len(_target_files) > 0:
-            if len(_target_files) > 1:
+            if len(_target_files) > 1 and 'target.md' in _target_files:
                 _target_files.remove('target.md')
             file_path = os.path.join(_target_dir, _target_files[0])
             return FileResponse(
                 path=file_path,
                 filename=f'{knowledge.built_in_docs_map[doc_id]}.{_target_files[0].split(".")[-1]}'
             )
-        else:
-            raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail='File not found')
 
     file_name = None
     for _file_name in os.listdir(storage_dir):
@@ -156,11 +119,11 @@ async def get_doc_file(doc_id: str) -> FileResponse:
             break
 
     if file_name is None:
-        raise HTTPException(status_code=404, detail="File not found")
-    else:
-        file_path = os.path.join(storage_dir, file_name)
-        original_file_name = file_name.lstrip(f'{doc_id}-')
-        return FileResponse(
-            path=file_path,
-            filename=original_file_name
-        )
+        raise HTTPException(status_code=404, detail='File not found')
+
+    file_path = os.path.join(storage_dir, file_name)
+    original_file_name = file_name.lstrip(f'{doc_id}-')
+    return FileResponse(
+        path=file_path,
+        filename=original_file_name
+    )

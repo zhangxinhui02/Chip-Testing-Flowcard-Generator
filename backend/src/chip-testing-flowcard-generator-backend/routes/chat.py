@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from schema.fastapi_request.chat import ChatRequest, UpdateChatRequest
+from schema.chat import ChatResponse
 import component.chat
 import util
 
@@ -33,7 +34,7 @@ async def create_chat() -> str:
 
 
 @router.post('/{chat_id}/chat')
-async def chat(chat_id:str, request: ChatRequest):
+async def chat(chat_id:str, request: ChatRequest) -> ChatResponse:
     """
     与大语言模型交流。
     chat_id: 聊天ID。
@@ -41,7 +42,7 @@ async def chat(chat_id:str, request: ChatRequest):
     using_docs: 要使用的知识库文档ID的列表，用于RAG检索。如果为空，则不使用RAG。
     k: RAG在每个文档中查找k条语义最相关的内容。
     reranking_k: RAG在每个文档中查找reranking_k条语义最相关的内容，重排序后取k条结果。如果为None，则不使用重排序（加快响应速度）。
-    :return: 大语言模型响应。
+    :return: 大语言模型响应及本次RAG结果。
     """
     return await component.chat.chat(
         request.message,

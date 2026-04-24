@@ -9,8 +9,8 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, System
 
 from config import const_config, common_config
 from component import knowledge, vllm_model
-from util import generate_unique_id
-from schema.chat import ChatTitle
+from schema.chat import ChatTitle, ChatResponse
+from util.semantic_search import parse_semantic_search_hit
 
 chat_storage_dir = os.path.join(const_config.storage_dir, 'chat')
 prompts_dir = const_config.prompts_dir
@@ -190,7 +190,7 @@ async def chat(
     k: int = 10,
     reranking_k: int | None = None,
     chat_id: str | None = None
-) -> str:
+) -> ChatResponse:
     """与大语言模型交流，可选多个文档用于RAG"""
     if chat_id not in cached_chat_metadata:  # 新聊天
         title = await __generate_chat_title(message)
@@ -199,8 +199,10 @@ async def chat(
     else:
         history: list[BaseMessage] = await load_history(chat_id)
 
+    rag_hits = []
     if len(using_doc_ids) > 0:
         results = await knowledge.query_from_docs(message, using_doc_ids, k=k, reranking_k=reranking_k)
+        rag_hits = [parse_semantic_search_hit(result) for result in results]
         _docs_prompts = '\n\n'.join([f'<doc>\n{result}\n</doc>' for result in results])
         prompt = prompts['chat-with-docs'].format(
             QUESTION=message, DOCS=_docs_prompts
@@ -215,4 +217,4 @@ async def chat(
     history.append(HumanMessage(message))
     history.append(response)
     await dump_history(chat_id, history)
-    return response.content
+    return ChatResponse(answer=response.content, rag_hits=rag_hits)

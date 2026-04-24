@@ -1,5 +1,15 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Edit3, MessageSquarePlus, RefreshCw, Save, Send, Trash2, X } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Edit3,
+  MessageSquarePlus,
+  RefreshCw,
+  Save,
+  Send,
+  Trash2,
+  X
+} from 'lucide-react';
 import { chatsApi } from '../api';
 import { createDefaultRagSettings, RagControls } from '../components/RagControls';
 import type { ChatMessage, ChatSummary, Doc, RagSettings } from '../types';
@@ -14,6 +24,7 @@ export function Chat({ docs }: ChatProps) {
   const [transientChatIds, setTransientChatIds] = useState<Set<string>>(() => new Set());
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [expandedRagKeys, setExpandedRagKeys] = useState<Set<string>>(() => new Set());
   const [draft, setDraft] = useState('');
   const [rag, setRag] = useState<RagSettings>(() => createDefaultRagSettings());
   const [loadingChats, setLoadingChats] = useState(false);
@@ -40,8 +51,8 @@ export function Chat({ docs }: ChatProps) {
       const remoteChats = await chatsApi.list();
       setChats((current) => {
         const remoteIds = new Set(remoteChats.map((chat) => chat.id));
-        const transient = current.filter((chat) => transientChatIds.has(chat.id) && !remoteIds.has(chat.id));
-        return [...transient, ...remoteChats];
+        const transientChats = current.filter((chat) => transientChatIds.has(chat.id) && !remoteIds.has(chat.id));
+        return [...transientChats, ...remoteChats];
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : '对话列表加载失败');
@@ -55,12 +66,9 @@ export function Chat({ docs }: ChatProps) {
   }, []);
 
   useEffect(() => {
-    if (!selectedChatId) {
+    if (!selectedChatId || transientChatIds.has(selectedChatId)) {
       setMessages([]);
-      return;
-    }
-    if (transientChatIds.has(selectedChatId)) {
-      setMessages([]);
+      setExpandedRagKeys(new Set());
       return;
     }
 
@@ -68,7 +76,10 @@ export function Chat({ docs }: ChatProps) {
     setError(null);
     chatsApi
       .get(selectedChatId)
-      .then(setMessages)
+      .then((history) => {
+        setMessages(history);
+        setExpandedRagKeys(new Set());
+      })
       .catch((err) => setError(err instanceof Error ? err.message : '对话加载失败'))
       .finally(() => setLoadingMessages(false));
   }, [selectedChatId, transientChatIds]);
@@ -81,6 +92,7 @@ export function Chat({ docs }: ChatProps) {
       setChats((current) => [{ id, title: '新对话' }, ...current]);
       setSelectedChatId(id);
       setMessages([]);
+      setExpandedRagKeys(new Set());
       setDraft('');
       setEditingTitle(false);
     } catch (err) {
@@ -92,6 +104,7 @@ export function Chat({ docs }: ChatProps) {
     if (!window.confirm(`删除对话「${chat.title}」？`)) {
       return;
     }
+
     setError(null);
     try {
       if (!transientChatIds.has(chat.id)) {
@@ -100,35 +113,49 @@ export function Chat({ docs }: ChatProps) {
           throw new Error('对话删除被后端拒绝');
         }
       }
+
       setChats((current) => current.filter((item) => item.id !== chat.id));
       setTransientChatIds((current) => {
         const next = new Set(current);
         next.delete(chat.id);
         return next;
       });
+
       if (selectedChatId === chat.id) {
         setSelectedChatId(null);
         setMessages([]);
+        setExpandedRagKeys(new Set());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '对话删除失败');
     }
   };
 
+  const beginTitleEdit = () => {
+    if (!selectedChat) {
+      return;
+    }
+    setTitleDraft(selectedChat.title);
+    setEditingTitle(true);
+  };
+
   const saveTitle = async () => {
     if (!selectedChatId || !titleDraft.trim()) {
       return;
     }
+
+    const nextTitle = titleDraft.trim();
     setError(null);
     try {
       if (!transientChatIds.has(selectedChatId)) {
-        const ok = await chatsApi.updateTitle(selectedChatId, titleDraft.trim());
+        const ok = await chatsApi.updateTitle(selectedChatId, nextTitle);
         if (!ok) {
           throw new Error('标题更新被后端拒绝');
         }
       }
+
       setChats((current) =>
-        current.map((chat) => (chat.id === selectedChatId ? { ...chat, title: titleDraft.trim() } : chat))
+        current.map((chat) => (chat.id === selectedChatId ? { ...chat, title: nextTitle } : chat))
       );
       setEditingTitle(false);
     } catch (err) {
@@ -140,6 +167,7 @@ export function Chat({ docs }: ChatProps) {
     event.preventDefault();
     const message = draft.trim();
     const ragError = validateRag(rag.k, rag.rerankingEnabled, rag.rerankingK);
+
     if (!message) {
       setError('请输入消息');
       return;
@@ -151,6 +179,7 @@ export function Chat({ docs }: ChatProps) {
 
     setSending(true);
     setError(null);
+
     try {
       let chatId = selectedChatId;
       if (!chatId) {
@@ -162,13 +191,22 @@ export function Chat({ docs }: ChatProps) {
 
       setDraft('');
       setMessages((current) => [...current, { type: 'HumanMessage', content: message }]);
+
       const response = await chatsApi.send(chatId, {
         message,
         usingDocs: rag.usingDocIds,
         k: rag.k,
         rerankingK: rag.rerankingEnabled ? rag.rerankingK : null
       });
-      setMessages((current) => [...current, { type: 'AIMessage', content: response }]);
+
+      setMessages((current) => [
+        ...current,
+        {
+          type: 'AIMessage',
+          content: response.answer,
+          ragHits: response.ragHits
+        }
+      ]);
       setTransientChatIds((current) => {
         const next = new Set(current);
         next.delete(chatId as string);
@@ -182,12 +220,16 @@ export function Chat({ docs }: ChatProps) {
     }
   };
 
-  const beginTitleEdit = () => {
-    if (!selectedChat) {
-      return;
-    }
-    setTitleDraft(selectedChat.title);
-    setEditingTitle(true);
+  const toggleRagResults = (messageKey: string) => {
+    setExpandedRagKeys((current) => {
+      const next = new Set(current);
+      if (next.has(messageKey)) {
+        next.delete(messageKey);
+      } else {
+        next.add(messageKey);
+      }
+      return next;
+    });
   };
 
   return (
@@ -204,6 +246,7 @@ export function Chat({ docs }: ChatProps) {
             </button>
           </div>
         </div>
+
         <div className="list-stack">
           {chats.length === 0 ? (
             <div className="empty-inline">{loadingChats ? '加载中' : '暂无对话'}</div>
@@ -273,7 +316,9 @@ export function Chat({ docs }: ChatProps) {
             </button>
           )}
         </div>
+
         {error && <div className="alert danger">{error}</div>}
+
         <div className="messages">
           {loadingMessages ? (
             <div className="empty-inline">加载中</div>
@@ -282,15 +327,62 @@ export function Chat({ docs }: ChatProps) {
           ) : (
             visibleMessages.map((message, index) => {
               const isUser = message.type === 'HumanMessage';
+              const messageKey = `${message.type}-${index}`;
+              const ragHits = message.ragHits ?? [];
+              const hasRagHits = !isUser && ragHits.length > 0;
+              const expanded = expandedRagKeys.has(messageKey);
+
               return (
-                <article className={`message ${isUser ? 'user' : 'assistant'}`} key={`${message.type}-${index}`}>
+                <article className={`message ${isUser ? 'user' : 'assistant'}`} key={messageKey}>
                   <div className="message-role">{isUser ? '用户' : '模型'}</div>
                   <div className="message-content">{message.content}</div>
+
+                  {hasRagHits && (
+                    <div className="message-rag">
+                      <button
+                        className="message-rag-toggle"
+                        type="button"
+                        onClick={() => toggleRagResults(messageKey)}
+                      >
+                        {expanded ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
+                        <span>RAG 搜索结果</span>
+                        <span className="message-rag-count">{ragHits.length}</span>
+                      </button>
+
+                      {expanded && (
+                        <div className="message-rag-results">
+                          {ragHits.map((hit, hitIndex) => (
+                            <article className="search-result-card compact" key={`${messageKey}-rag-${hitIndex}`}>
+                              <div className="search-result-header">
+                                <span className="search-result-rank">{hitIndex + 1}</span>
+                                <div className="search-result-title-block">
+                                  <h3>{hit.documentTitle || '未命名文档'}</h3>
+                                  {hit.hierarchy.length > 0 ? (
+                                    <div className="search-result-breadcrumb">
+                                      {hit.hierarchy.map((item, itemIndex) => (
+                                        <span className="search-result-chip" key={`${messageKey}-${item}-${itemIndex}`}>
+                                          {item}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="search-result-meta">未提供目录层级</div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="search-result-content">{hit.content}</div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </article>
               );
             })
           )}
         </div>
+
         <form className="composer" onSubmit={submitMessage}>
           <textarea
             value={draft}

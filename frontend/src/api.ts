@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatSummary, Doc, DocFileType, Flowcard, SemanticSearchHit } from './types';
+import type { ChatMessage, ChatResponse, ChatSummary, Doc, DocFileType, Flowcard, SemanticSearchHit } from './types';
 
 const API_BASE = '/api';
 
@@ -6,6 +6,11 @@ interface BackendSemanticSearchHit {
   document_title: string;
   hierarchy: string[];
   content: string;
+}
+
+interface BackendChatResponse {
+  answer: string;
+  rag_hits: BackendSemanticSearchHit[];
 }
 
 async function readError(response: Response): Promise<string> {
@@ -119,7 +124,7 @@ export const chatsApi = {
       rerankingK: number | null;
     }
   ) =>
-    requestJson<string>(`/chats/${encodeURIComponent(chatId)}/chat`, {
+    requestJson<BackendChatResponse>(`/chats/${encodeURIComponent(chatId)}/chat`, {
       method: 'POST',
       body: JSON.stringify({
         message: input.message,
@@ -127,7 +132,17 @@ export const chatsApi = {
         k: input.k,
         reranking_k: input.rerankingK
       })
-    })
+    }).then(
+      (result) =>
+        ({
+          answer: result.answer,
+          ragHits: result.rag_hits.map((hit) => ({
+            documentTitle: hit.document_title,
+            hierarchy: hit.hierarchy,
+            content: hit.content
+          }))
+        }) satisfies ChatResponse
+    )
 };
 
 export const flowcardsApi = {

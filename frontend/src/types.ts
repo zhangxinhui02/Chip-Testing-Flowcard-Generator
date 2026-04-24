@@ -16,6 +16,11 @@ export interface SemanticSearchHit {
   content: string;
 }
 
+export interface ChatResponse {
+  answer: string;
+  ragHits: SemanticSearchHit[];
+}
+
 export interface ChatSummary {
   id: string;
   title: string;
@@ -26,6 +31,7 @@ export type ChatMessageType = 'SystemMessage' | 'HumanMessage' | 'AIMessage';
 export interface ChatMessage {
   type: ChatMessageType;
   content: string;
+  ragHits?: SemanticSearchHit[];
 }
 
 export interface Job {
