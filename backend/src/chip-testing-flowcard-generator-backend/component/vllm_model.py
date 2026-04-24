@@ -1,10 +1,10 @@
-import json
+import os
 import aiohttp
 from typing import Literal
 from pydantic import SecretStr
-from langchain_openai import OpenAI, ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
-from config import common_config, llm_model_config, embedding_model_config, reranker_model_config
+from config import const_config, common_config, llm_model_config, embedding_model_config, reranker_model_config
 
 chat_llm_client = ChatOpenAI(
     api_key=SecretStr(llm_model_config.api_key),
@@ -17,10 +17,12 @@ embedding_client = OpenAIEmbeddings(
     base_url=embedding_model_config.base_url,
     model=embedding_model_config.model
 )
+with open(os.path.join(const_config.prompts_dir, 'reranker-instruction.md'), 'r', encoding='utf-8') as _f:
+    reranker_prompt = _f.read()
 
 
 def __resolv_vllm_host_port(vllm_instance: Literal['vllm-llm', 'vllm-embedding', 'vllm-reranker']) -> tuple[str, int]:
-    """根据vllm实例的url，解析出主机名和端口"""
+    """根据vllm实例名称，解析出主机名和端口"""
     if vllm_instance == 'vllm-llm':
         vllm_url = llm_model_config.base_url
     elif vllm_instance == 'vllm-embedding':
@@ -92,7 +94,7 @@ async def reranker_query(query: str, docs: list[str], k: int = 10):
 
     payload = {
         "model": reranker_model_config.model,
-        "query": query,
+        "query": reranker_prompt.format(QUESTION=query),
         "documents": docs,
         "top_n": k
     }
