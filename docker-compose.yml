@@ -19,7 +19,11 @@ x-vllm-common: &vllm-common
     retries: 100
     start_period: 30s
   post_start:
-    - command: sh -lc 'python3 /vllm-init-sleep-check.py'
+    - command: >
+        sh -lc '
+        nohup python3 /vllm-init-sleep-check.py >/dev/null 2>&1 &
+        exit 0
+        '
 
 services:
   vllm-llm:
@@ -29,7 +33,7 @@ services:
     command:  # Qwen/Qwen3.6-35B-A3B-FP8 模型的定制化参数
       - "Qwen/Qwen3.6-35B-A3B-FP8"
       - "--served-model-name"
-      - "qwen3.6-35b-a3b"
+      - "Qwen/Qwen3.6-35B-A3B-FP8"
       - "--host"
       - "0.0.0.0"
       - "--port"
@@ -47,8 +51,11 @@ services:
       - "4096"
       - "--max-num-seqs"
       - "4"
-#      - "--api-key"
-#      - "${VLLM_API_KEY}"
+    #      - "--api-key"
+    #      - "VcAxyNmtjEuFNSTv"
+    #      - "--enable-auto-tool-choice"
+    #      - "--tool-call-parser"
+    #      - "qwen3_coder"
     expose:
       - "8000"
     ports:
@@ -61,7 +68,7 @@ services:
     command:  # Qwen/Qwen3-Embedding-0.6B 模型的定制化参数
       - "Qwen/Qwen3-Embedding-0.6B"
       - "--served-model-name"
-      - "qwen3-embedding-0.6b"
+      - "Qwen/Qwen3-Embedding-0.6B"
       - "--host"
       - "0.0.0.0"
       - "--port"
@@ -73,8 +80,8 @@ services:
       - "--gpu-memory-utilization"
       - "0.1"
       - "--enable-sleep-mode"
-#      - "--api-key"
-#      - "${VLLM_API_KEY}"
+    #      - "--api-key"
+    #      - "${VLLM_API_KEY}"
     depends_on:
       vllm-llm:
         condition: service_healthy
@@ -90,7 +97,7 @@ services:
     command:  # Qwen/Qwen3-Reranker-0.6B 模型的定制化参数
       - "Qwen/Qwen3-Reranker-0.6B"
       - "--served-model-name"
-      - "qwen3-reranker-0.6b"
+      - "Qwen/Qwen3-Reranker-0.6B"
       - "--host"
       - "0.0.0.0"
       - "--port"
@@ -106,8 +113,8 @@ services:
       - '{"architectures":["Qwen3ForSequenceClassification"],"classifier_from_token":["no","yes"],"is_original_qwen3_reranker":true}'
       - "--chat-template"
       - "/opt/templates/qwen3_reranker.jinja"
-#      - "--api-key"
-#      - "${VLLM_API_KEY}"
+    #      - "--api-key"
+    #      - "${VLLM_API_KEY}"
     volumes:
       - /home/zxh/.cache/huggingface:/root/.cache/huggingface
       - ./scripts/vllm-init-sleep-check.py:/vllm-init-sleep-check.py:ro
