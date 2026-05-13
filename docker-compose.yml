@@ -6,9 +6,9 @@ x-vllm-common: &vllm-common
   environment:
     HF_TOKEN: ""  # Huggingface Token，用于解除下载模型的速率限制
     HF_HUB_OFFLINE: '1'
-    VLLM_SERVER_DEV_MODE: "1"   # 用于模型的 sleep/wake 能力，以动态释放显存；必须在内网
+    VLLM_SERVER_DEV_MODE: "1"   # 用于模型的 sleep/wake 能力，以动态释放显存
   volumes:
-    - /home/zxh/.cache/huggingface:/root/.cache/huggingface
+    - ~/.cache/huggingface:/root/.cache/huggingface
     - ./scripts/vllm-init-sleep-check.py:/vllm-init-sleep-check.py:ro
   networks:
     - chip_testing_flowcard_generator
@@ -26,6 +26,74 @@ x-vllm-common: &vllm-common
         '
 
 services:
+  milvus-etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.25
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    expose:
+      - "2379"
+    volumes:
+      - ./volume/milvus-etcd:/etcd
+    networks:
+      - chip_testing_flowcard_generator
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: [ "CMD", "etcdctl", "endpoint", "health" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus-minio:
+    container_name: milvus-minio
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    expose:
+      - "9000"
+      - "9001"
+    volumes:
+      - ./volume/milvus-minio:/minio_data
+    networks:
+      - chip_testing_flowcard_generator
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus:
+    container_name: milvus
+    image: milvusdb/milvus:v2.6.8
+    command: [ "milvus", "run", "standalone" ]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: woodpecker
+    volumes:
+      - ./volume/milvus:/var/lib/milvus
+    networks:
+      - chip_testing_flowcard_generator
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9091/healthz" ]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    expose:
+      - "19530"
+      - "9091"
+    depends_on:
+      - "milvus-etcd"
+      - "milvus-minio"
+
   vllm-llm:
     <<: *vllm-common
     container_name: vllm-llm
@@ -52,14 +120,12 @@ services:
       - "--max-num-seqs"
       - "4"
     #      - "--api-key"
-    #      - "VcAxyNmtjEuFNSTv"
+    #      - ""
     #      - "--enable-auto-tool-choice"
     #      - "--tool-call-parser"
     #      - "qwen3_coder"
     expose:
       - "8000"
-    ports:
-      - "18000:8000"
 
   vllm-embedding:
     <<: *vllm-common
@@ -87,8 +153,6 @@ services:
         condition: service_healthy
     expose:
       - "8000"
-    ports:
-      - "18001:8000"
 
   vllm-reranker:
     <<: *vllm-common
@@ -116,7 +180,7 @@ services:
     #      - "--api-key"
     #      - "${VLLM_API_KEY}"
     volumes:
-      - /home/zxh/.cache/huggingface:/root/.cache/huggingface
+      - ~/.cache/huggingface:/root/.cache/huggingface
       - ./scripts/vllm-init-sleep-check.py:/vllm-init-sleep-check.py:ro
       - ./volume/vllm-reranker/templates:/opt/templates:ro
     depends_on:
@@ -124,8 +188,40 @@ services:
         condition: service_healthy
     expose:
       - "8000"
+
+  backend:
+    container_name: backend
+    image: backend  # 需要自行构建
+    volumes:
+      - ./volume/backend/flowcard:/app/flowcard
+      - ./volume/backend/log:/app/log
+      - ./volume/backend/storage:/app/storage
+      - ./volume/backend/config.toml:/app/config.toml:ro
+    networks:
+      - chip_testing_flowcard_generator
+    expose:
+      - "9000"
+    depends_on:
+      vllm-llm:
+        condition: service_healthy
+      vllm-embedding:
+        condition: service_healthy
+      vllm-reranker:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+
+  frontend:
+    container_name: frontend
+    image: frontend  # 需要自行构建
+    networks:
+      - chip_testing_flowcard_generator
+    expose:
+      - "80"
     ports:
-      - "18002:8000"
+      - "8080:80"
+    depends_on:
+      - "backend"
 
 networks:
   chip_testing_flowcard_generator:
