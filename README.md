@@ -43,10 +43,33 @@ docker build -t frontend .
 cd ..
 ```
 
-构建镜像完毕后即可运行项目：
+之后从配置文件模板创建实际配置文件：
+
+```bash
+mkdir -p volume/{backend,milvus-etcd,milvus-minio,milvus,vllm-reranker}
+mkdir -p volume/backend/{flowcard,log,storage}
+cp backend/config.toml.template volume/backend/config.toml
+# 编辑volume/backend/config.toml，按需填写
+nano volume/backend/config.toml
+```
+
+然后编辑 docker-compose.yml 文件，查看是否有需要修改的地方：
+
+```bash
+nano docker-compose.yml
+```
+
+现在可以运行项目：
 
 ```bash
 docker compose up -d
+```
+
+停止项目：
+
+```bash
+# 必须在项目根目录下
+docker compose down
 ```
 
 ## 访问
